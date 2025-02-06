@@ -38,20 +38,23 @@ else:
     def extraer_info_sku(sku, rango_texto):
         partes = sku.split("B")
         if len(partes) < 2:
-            return None, None, None
+            return None, (1, 1), None
         
         contrato_meses = int(partes[0][-2:]) if partes[0][-2:].isdigit() else None
         tipo_licencia = "SERVER" if "SERVER" in sku else "NORMAL"
         
-        # Extraer el rango de licencias desde el texto
-        if isinstance(rango_texto, str) and "-" in rango_texto:
-            rango_min, rango_max = map(int, rango_texto.replace("License Range:", "").strip().split("-"))
-        else:
+        # Extraer el rango de licencias desde el texto con manejo de errores
+        try:
+            if isinstance(rango_texto, str) and "-" in rango_texto:
+                rango_min, rango_max = map(int, rango_texto.replace("License Range:", "").strip().split("-"))
+            else:
+                rango_min, rango_max = 1, 1
+        except ValueError:
             rango_min, rango_max = 1, 1
         
         return contrato_meses, (rango_min, rango_max), tipo_licencia
     
-    df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df.apply(lambda row: extraer_info_sku(row["Product Number"], row["License Range"]), axis=1))
+    df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df.apply(lambda row: extraer_info_sku(str(row.get("Product Number", "")), str(row.get("License Range", ""))), axis=1))
     
     # Filtrar productos permitidos y excluir Non-Commercial
     productos_permitidos = [
@@ -77,40 +80,5 @@ else:
         producto = st.selectbox(f"Producto {consecutivo}", ["Selecciona..."] + productos_permitidos, key=f"producto_{consecutivo}")
         if producto != "Selecciona...":
             contrato_meses = st.selectbox(f"Tiempo de contratación para {producto}", [12, 24, 36], key=f"contrato_{consecutivo}")
-            cantidad = st.number_input(f"Cantidad de {producto}", min_value=1, step=1, key=f"cantidad_{consecutivo}")
-            descuento = st.number_input(f"Descuento (%) para {producto}", min_value=0.0, max_value=100.0, step=0.1, key=f"descuento_{consecutivo}")
-            
-            # Filtrar según los criterios seleccionados y el rango correcto
-            df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
-            df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: r[0] <= cantidad <= r[1])]
-            df_seleccion = df_seleccion.sort_values(by=["Rango"])  # Ordenar para elegir el precio correcto
-            
-            if not df_seleccion.empty:
-                precio_lista = df_seleccion.iloc[0]["MSRP USD"]
-                precio_final_unitario = precio_lista * (1 - descuento / 100)
-                precio_total = precio_final_unitario * cantidad
-                cotizacion.append([consecutivo, producto, contrato_meses, cantidad, precio_lista, precio_final_unitario, precio_total])
-            else:
-                st.warning(f"No se encontró una opción válida para {producto} con {contrato_meses} meses y cantidad {cantidad}.")
-            
-            agregar_otro = st.radio("¿Deseas agregar otro producto?", ["Sí", "No"], key=f"continuar_{consecutivo}")
-            if agregar_otro == "No" or consecutivo == 6:
-                break
-            consecutivo += 1
-        else:
-            break
 
-    if cotizacion:
-        df_cotizacion = pd.DataFrame(cotizacion, columns=["#", "Producto", "Contrato (Meses)", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
-        subtotal = df_cotizacion["Precio Total"].sum()
-        iva = subtotal * 0.16
-        gran_total = subtotal + iva
-        
-        st.write("Cotización generada:")
-        st.dataframe(df_cotizacion)
-        st.write(f"**Subtotal:** ${subtotal:,.2f}")
-        st.write(f"**IVA (16%):** ${iva:,.2f}")
-        st.write(f"**Gran Total:** ${gran_total:,.2f}")
-    else:
-        st.warning("No has seleccionado ningún producto para cotizar.")
 
