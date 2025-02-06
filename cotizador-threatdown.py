@@ -98,6 +98,7 @@ if df is not None:
 else:
     st.error("No se pudo cargar el archivo Excel.")
 
+
         st.warning("No has seleccionado ningún producto para cotizar.")
 else:
     st.error("No se pudo cargar el archivo Excel.")
