@@ -55,6 +55,7 @@ else:
         return contrato_meses, (rango_min, rango_max), tipo_licencia
     
     df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df.apply(lambda row: extraer_info_sku(str(row.get("Product Number", "")), str(row.get("License Range", ""))), axis=1))
+    df["Rango Min"] = df["Rango"].apply(lambda x: x[0])  # Extraer rango mínimo para ordenar
     
     # Filtrar productos permitidos y excluir Non-Commercial
     productos_permitidos = [
@@ -86,7 +87,7 @@ else:
             # Filtrar según los criterios seleccionados y el rango correcto
             df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
             df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: r[0] <= cantidad <= r[1])]
-            df_seleccion = df_seleccion.sort_values(by=["Rango"])  # Ordenar para elegir el precio correcto
+            df_seleccion = df_seleccion.sort_values(by=["Rango Min"])  # Ordenar por rango mínimo correctamente
             
             if not df_seleccion.empty:
                 precio_lista = df_seleccion.iloc[0]["MSRP USD"]
@@ -102,5 +103,6 @@ else:
             consecutivo += 1
         else:
             break
+
 
 
