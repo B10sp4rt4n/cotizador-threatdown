@@ -4,19 +4,14 @@ import pandas as pd
 import streamlit as st
 import requests
 from io import BytesIO
+from fpdf import FPDF
 
-# Asegurar que openpyxl y fpdf estén instalados
+# Asegurar que openpyxl esté instalado
 try:
     import openpyxl
 except ImportError:
     subprocess.run(["pip", "install", "openpyxl"])
     import openpyxl
-
-try:
-    from fpdf import FPDF
-except ImportError:
-    subprocess.run(["pip", "install", "fpdf"])
-    from fpdf import FPDF
 
 st.title("Cotizador ThreatDown")
 
@@ -120,9 +115,12 @@ else:
             pdf.cell(0, 10, txt=f"Subtotal: ${subtotal:,.2f}", ln=True)
             pdf.cell(0, 10, txt=f"IVA (16%): ${iva:,.2f}", ln=True)
             pdf.cell(0, 10, txt=f"Gran Total: ${gran_total:,.2f}", ln=True)
-            pdf.output("cotizacion.pdf")
-            st.success("Cotización generada en PDF. Descárguela desde la opción correspondiente en el navegador.")
+            
+            pdf_path = "cotizacion.pdf"
+            pdf.output(pdf_path)
+            
+            with open(pdf_path, "rb") as pdf_file:
+                st.download_button(label="Descargar Cotización PDF", data=pdf_file, file_name="cotizacion.pdf", mime="application/pdf")
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
-
 
