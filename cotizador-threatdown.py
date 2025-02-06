@@ -32,19 +32,30 @@ df = load_data()
 if df is not None:
     st.write("Archivo cargado correctamente")
 
-    # Lista de productos permitidos
+    # Extraer información de SKU
+    def extraer_info_sku(sku):
+        partes = sku.split("B")
+        if len(partes) < 2:
+            return None, None, None
+        
+        contrato_meses = int(partes[0][-2:]) if partes[0][-2:].isdigit() else None
+        rango = int(partes[1]) if partes[1].isdigit() else None
+        tipo_licencia = "SERVER" if "SERVER" in sku else "NORMAL"
+        
+        return contrato_meses, rango, tipo_licencia
+    
+    df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df["Product Number"].apply(extraer_info_sku))
+    
+    # Filtrar productos permitidos
     productos_permitidos = [
         "ThreatDown ADVANCED", "ThreatDown ADVANCED SERVER", "ThreatDown CORE", "ThreatDown CORE SERVER",
         "ThreatDown ELITE", "ThreatDown ELITE SERVER", "ThreatDown MOBILE SECURITY", "ThreatDown ULTIMATE",
         "ThreatDown ULTIMATE SERVER"
     ]
-
-    # Limpiar nombres de productos
+    
     df["Product Title"] = df["Product Title"].astype(str).str.replace("\n", " ", regex=True).str.strip()
-
-    # Filtrar solo los productos permitidos
     df_filtrado = df[df["Product Title"].isin(productos_permitidos)]
-
+    
     # Interfaz de usuario con Streamlit
     st.write("Selecciona los productos para la cotización:")
 
@@ -52,20 +63,31 @@ if df is not None:
     for i in range(6):  # Máximo 6 productos
         producto = st.selectbox(f"Producto {i+1}", ["Selecciona..."] + productos_permitidos, key=f"producto_{i}")
         if producto != "Selecciona...":
+            contrato_meses = st.selectbox(f"Tiempo de contratación para {producto}", [12, 24, 36], key=f"contrato_{i}")
             cantidad = st.number_input(f"Cantidad de {producto}", min_value=1, step=1, key=f"cantidad_{i}")
             margen = st.number_input(f"Margen (%) para {producto}", min_value=0.0, max_value=100.0, step=0.1, key=f"margen_{i}")
-            precio_lista = df_filtrado[df_filtrado["Product Title"] == producto]["MSRP USD"].values[0]
-            precio_final_unitario = precio_lista * (1 + margen / 100)
-            precio_total = precio_final_unitario * cantidad
-            cotizacion.append([producto, cantidad, precio_lista, precio_final_unitario, precio_total])
+            
+            # Filtrar según los criterios seleccionados y el rango
+            df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
+            df_seleccion = df_seleccion[(df_seleccion["Rango"] >= cantidad) | (df_seleccion["Rango"] == 1)]
+            df_seleccion = df_seleccion.sort_values(by=["Rango"])  # Ordenar para elegir el precio correcto
+            
+            if not df_seleccion.empty:
+                precio_lista = df_seleccion.iloc[0]["MSRP USD"]
+                precio_final_unitario = precio_lista * (1 + margen / 100)
+                precio_total = precio_final_unitario * cantidad
+                cotizacion.append([producto, contrato_meses, cantidad, precio_lista, precio_final_unitario, precio_total])
+            else:
+                st.warning(f"No se encontró una opción válida para {producto} con {contrato_meses} meses y cantidad {cantidad}.")
         else:
             break
 
     if cotizacion:
-        df_cotizacion = pd.DataFrame(cotizacion, columns=["Producto", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
+        df_cotizacion = pd.DataFrame(cotizacion, columns=["Producto", "Contrato (Meses)", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
         st.write("Cotización generada:")
         st.dataframe(df_cotizacion)
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
 else:
     st.error("No se pudo cargar el archivo Excel.")
+
