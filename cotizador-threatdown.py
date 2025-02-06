@@ -35,18 +35,23 @@ else:
     st.write("Archivo cargado correctamente")
 
     # Extraer información de SKU
-    def extraer_info_sku(sku):
+    def extraer_info_sku(sku, rango_texto):
         partes = sku.split("B")
         if len(partes) < 2:
             return None, None, None
         
         contrato_meses = int(partes[0][-2:]) if partes[0][-2:].isdigit() else None
-        rango = int(partes[1]) if partes[1].isdigit() else None
         tipo_licencia = "SERVER" if "SERVER" in sku else "NORMAL"
         
-        return contrato_meses, rango, tipo_licencia
+        # Extraer el rango de licencias desde el texto
+        if isinstance(rango_texto, str) and "-" in rango_texto:
+            rango_min, rango_max = map(int, rango_texto.replace("License Range:", "").strip().split("-"))
+        else:
+            rango_min, rango_max = 1, 1
+        
+        return contrato_meses, (rango_min, rango_max), tipo_licencia
     
-    df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df["Product Number"].apply(extraer_info_sku))
+    df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df.apply(lambda row: extraer_info_sku(row["Product Number"], row["License Range"]), axis=1))
     
     # Filtrar productos permitidos y excluir Non-Commercial
     productos_permitidos = [
@@ -75,9 +80,9 @@ else:
             cantidad = st.number_input(f"Cantidad de {producto}", min_value=1, step=1, key=f"cantidad_{consecutivo}")
             descuento = st.number_input(f"Descuento (%) para {producto}", min_value=0.0, max_value=100.0, step=0.1, key=f"descuento_{consecutivo}")
             
-            # Filtrar según los criterios seleccionados y el rango
+            # Filtrar según los criterios seleccionados y el rango correcto
             df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
-            df_seleccion = df_seleccion[(df_seleccion["Rango"] >= cantidad) | (df_seleccion["Rango"] == 1)]
+            df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: r[0] <= cantidad <= r[1])]
             df_seleccion = df_seleccion.sort_values(by=["Rango"])  # Ordenar para elegir el precio correcto
             
             if not df_seleccion.empty:
