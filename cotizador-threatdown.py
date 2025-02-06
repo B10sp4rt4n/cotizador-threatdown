@@ -87,6 +87,11 @@ else:
             # Filtrar según los criterios seleccionados y el rango correcto
             df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
             df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: r[0] <= cantidad <= r[1])]
+            
+            # Verificar si la columna Rango Min está presente en df_seleccion antes de ordenar
+            if "Rango Min" not in df_seleccion.columns:
+                df_seleccion["Rango Min"] = df_seleccion["Rango"].apply(lambda x: x[0])
+            
             df_seleccion = df_seleccion.sort_values(by=["Rango Min"])  # Ordenar por rango mínimo correctamente
             
             if not df_seleccion.empty:
@@ -103,6 +108,5 @@ else:
             consecutivo += 1
         else:
             break
-
 
 
