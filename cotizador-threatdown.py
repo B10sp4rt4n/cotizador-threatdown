@@ -92,8 +92,15 @@ else:
 
     if cotizacion:
         df_cotizacion = pd.DataFrame(cotizacion, columns=["#", "Producto", "Contrato (Meses)", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
+        subtotal = df_cotizacion["Precio Total"].sum()
+        iva = subtotal * 0.16
+        gran_total = subtotal + iva
+        
         st.write("Cotización generada:")
         st.dataframe(df_cotizacion)
+        st.write(f"**Subtotal:** ${subtotal:,.2f}")
+        st.write(f"**IVA (16%):** ${iva:,.2f}")
+        st.write(f"**Gran Total:** ${gran_total:,.2f}")
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
 
