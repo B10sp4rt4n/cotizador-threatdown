@@ -1,41 +1,29 @@
 import pandas as pd
 import streamlit as st
+import requests
+from io import BytesIO
 
-# Cargar el archivo con productos filtrados
-file_path = "/mnt/data/Lista de Precios ThD.xlsx"
-df = pd.read_excel(file_path, sheet_name="Table003 (Page 21-64)")
-
-# Lista de productos permitidos
-productos_permitidos = [
-    "ThreatDown ADVANCED", "ThreatDown ADVANCED SERVER", "ThreatDown CORE", "ThreatDown CORE SERVER",
-    "ThreatDown ELITE", "ThreatDown ELITE SERVER", "ThreatDown MOBILE SECURITY", "ThreatDown ULTIMATE",
-    "ThreatDown ULTIMATE SERVER"
-]
-
-# Limpiar nombres de productos
-df["Product Title"] = df["Product Title"].str.replace("\n", " ", regex=True).str.strip()
-
-# Filtrar productos
-df_filtrado = df[df["Product Title"].isin(productos_permitidos)]
-
-# Interfaz de usuario con Streamlit
 st.title("Cotizador ThreatDown")
 
-productos_seleccionados = []
+# URL directa al archivo en GitHub (versión RAW)
+url_excel = "https://raw.githubusercontent.com/B10sp4rt4n/cotizador-threatdown/main/Lista%20de%20Precios%20ThD.xlsx"
 
-# Agregar productos hasta un máximo de 6
-for i in range(6):
-    producto = st.selectbox(f"Selecciona el producto {i+1}", ["Selecciona..."] + productos_permitidos, key=f"producto_{i}")
-    if producto != "Selecciona...":
-        productos_seleccionados.append(producto)
+# Descargar el archivo
+@st.cache_data
+def load_data():
+    response = requests.get(url_excel)
+    if response.status_code == 200:
+        return pd.read_excel(BytesIO(response.content), sheet_name="Table003 (Page 21-64)")
     else:
-        break
+        st.error("No se pudo descargar el archivo Excel. Verifica la URL.")
+        return None
 
-# Filtrar los productos seleccionados
-df_cotizacion = df_filtrado[df_filtrado["Product Title"].isin(productos_seleccionados)]
+df = load_data()
 
-if not df_cotizacion.empty:
-    st.write("Cotización generada:")
+if df is not None:
+    st.write("Archivo cargado correctamente")
+    st.dataframe(df)
+
     st.dataframe(df_cotizacion)
 else:
     st.write("No se han seleccionado productos para cotizar.")
