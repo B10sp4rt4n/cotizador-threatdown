@@ -101,7 +101,26 @@ else:
         st.write(f"**Subtotal:** ${subtotal:,.2f}")
         st.write(f"**IVA (16%):** ${iva:,.2f}")
         st.write(f"**Gran Total:** ${gran_total:,.2f}")
+        
+        # Botón para generar versión imprimible
+        if st.button("Generar versión imprimible"):
+            from fpdf import FPDF
+            pdf = FPDF()
+            pdf.add_page()
+            pdf.set_font("Arial", size=12)
+            pdf.cell(200, 10, txt="Cotización ThreatDown", ln=True, align='C')
+            pdf.ln(10)
+            
+            for index, row in df_cotizacion.iterrows():
+                pdf.cell(0, 10, txt=f"{row['#']}. {row['Producto']} - {row['Cantidad']} unidades - ${row['Precio Total']:,.2f}", ln=True)
+            
+            pdf.ln(10)
+            pdf.cell(0, 10, txt=f"Subtotal: ${subtotal:,.2f}", ln=True)
+            pdf.cell(0, 10, txt=f"IVA (16%): ${iva:,.2f}", ln=True)
+            pdf.cell(0, 10, txt=f"Gran Total: ${gran_total:,.2f}", ln=True)
+            
+            pdf.output("cotizacion.pdf")
+            st.success("Cotización generada en PDF. Descárguela desde la opción correspondiente en el navegador.")
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
-
 
