@@ -1,3 +1,13 @@
+import os
+import subprocess
+
+# Instalar openpyxl si no está instalado
+try:
+    import openpyxl
+except ImportError:
+    subprocess.run(["pip", "install", "openpyxl"])
+    import openpyxl
+
 import pandas as pd
 import streamlit as st
 import requests
@@ -24,6 +34,3 @@ if df is not None:
     st.write("Archivo cargado correctamente")
     st.dataframe(df)
 
-    st.dataframe(df_cotizacion)
-else:
-    st.write("No se han seleccionado productos para cotizar.")
