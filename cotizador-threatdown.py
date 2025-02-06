@@ -107,8 +107,3 @@ else:
             consecutivo += 1
         else:
             break
-
-        else:
-            break
-
-
