@@ -60,12 +60,14 @@ if df is not None:
     st.write("Selecciona los productos para la cotización:")
 
     cotizacion = []
-    for i in range(6):  # Máximo 6 productos
-        producto = st.selectbox(f"Producto {i+1}", ["Selecciona..."] + productos_permitidos, key=f"producto_{i}")
+    consecutivo = 1
+
+    while True:
+        producto = st.selectbox(f"Producto {consecutivo}", ["Selecciona..."] + productos_permitidos, key=f"producto_{consecutivo}")
         if producto != "Selecciona...":
-            contrato_meses = st.selectbox(f"Tiempo de contratación para {producto}", [12, 24, 36], key=f"contrato_{i}")
-            cantidad = st.number_input(f"Cantidad de {producto}", min_value=1, step=1, key=f"cantidad_{i}")
-            margen = st.number_input(f"Margen (%) para {producto}", min_value=0.0, max_value=100.0, step=0.1, key=f"margen_{i}")
+            contrato_meses = st.selectbox(f"Tiempo de contratación para {producto}", [12, 24, 36], key=f"contrato_{consecutivo}")
+            cantidad = st.number_input(f"Cantidad de {producto}", min_value=1, step=1, key=f"cantidad_{consecutivo}")
+            descuento = st.number_input(f"Descuento (%) para {producto}", min_value=0.0, max_value=100.0, step=0.1, key=f"descuento_{consecutivo}")
             
             # Filtrar según los criterios seleccionados y el rango
             df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
@@ -74,19 +76,28 @@ if df is not None:
             
             if not df_seleccion.empty:
                 precio_lista = df_seleccion.iloc[0]["MSRP USD"]
-                precio_final_unitario = precio_lista * (1 + margen / 100)
+                precio_final_unitario = precio_lista * (1 - descuento / 100)
                 precio_total = precio_final_unitario * cantidad
-                cotizacion.append([producto, contrato_meses, cantidad, precio_lista, precio_final_unitario, precio_total])
+                cotizacion.append([consecutivo, producto, contrato_meses, cantidad, precio_lista, precio_final_unitario, precio_total])
             else:
                 st.warning(f"No se encontró una opción válida para {producto} con {contrato_meses} meses y cantidad {cantidad}.")
+            
+            agregar_otro = st.radio("¿Deseas agregar otro producto?", ["Sí", "No"], key=f"continuar_{consecutivo}")
+            if agregar_otro == "No" or consecutivo == 6:
+                break
+            consecutivo += 1
         else:
             break
 
     if cotizacion:
-        df_cotizacion = pd.DataFrame(cotizacion, columns=["Producto", "Contrato (Meses)", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
+        df_cotizacion = pd.DataFrame(cotizacion, columns=["#", "Producto", "Contrato (Meses)", "Cantidad", "Precio Lista Unitario", "Precio Final Unitario", "Precio Total"])
         st.write("Cotización generada:")
         st.dataframe(df_cotizacion)
     else:
+        st.warning("No has seleccionado ningún producto para cotizar.")
+else:
+    st.error("No se pudo cargar el archivo Excel.")
+
         st.warning("No has seleccionado ningún producto para cotizar.")
 else:
     st.error("No se pudo cargar el archivo Excel.")
