@@ -86,15 +86,14 @@ else:
             
             # Filtrar según los criterios seleccionados y el rango correcto
             df_seleccion = df_filtrado[(df_filtrado["Product Title"] == producto) & (df_filtrado["Contrato (Meses)"] == contrato_meses)]
-            df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: r[0] <= cantidad <= r[1])]
+            df_seleccion = df_seleccion[df_seleccion["Rango"].apply(lambda r: isinstance(r, tuple) and r[0] <= cantidad <= r[1])]
             
-            # Verificar si la columna Rango Min está presente en df_seleccion antes de ordenar
-            if "Rango Min" not in df_seleccion.columns:
-                df_seleccion["Rango Min"] = df_seleccion["Rango"].apply(lambda x: x[0])
-            
-            df_seleccion = df_seleccion.sort_values(by=["Rango Min"])  # Ordenar por rango mínimo correctamente
-            
+            # Verificar si df_seleccion no está vacío antes de procesarlo
             if not df_seleccion.empty:
+                if "Rango Min" not in df_seleccion.columns:
+                    df_seleccion["Rango Min"] = df_seleccion["Rango"].apply(lambda x: x[0])
+                df_seleccion = df_seleccion.sort_values(by=["Rango Min"])  # Ordenar por rango mínimo correctamente
+                
                 precio_lista = df_seleccion.iloc[0]["MSRP USD"]
                 precio_final_unitario = precio_lista * (1 - descuento / 100)
                 precio_total = precio_final_unitario * cantidad
@@ -106,6 +105,9 @@ else:
             if agregar_otro == "No" or consecutivo == 6:
                 break
             consecutivo += 1
+        else:
+            break
+
         else:
             break
 
