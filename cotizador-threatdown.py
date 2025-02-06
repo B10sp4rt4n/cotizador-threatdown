@@ -24,12 +24,13 @@ def load_data():
     if response.status_code == 200:
         return pd.read_excel(BytesIO(response.content), sheet_name="Table003 (Page 21-64)")
     else:
-        st.error("No se pudo descargar el archivo Excel. Verifica la URL.")
         return None
 
 df = load_data()
 
-if df is not None:
+if df is None:
+    st.error("No se pudo cargar el archivo Excel.")
+else:
     st.write("Archivo cargado correctamente")
 
     # Extraer información de SKU
@@ -95,11 +96,5 @@ if df is not None:
         st.dataframe(df_cotizacion)
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
-else:
-    st.error("No se pudo cargar el archivo Excel.")
 
-
-        st.warning("No has seleccionado ningún producto para cotizar.")
-else:
-    st.error("No se pudo cargar el archivo Excel.")
 
