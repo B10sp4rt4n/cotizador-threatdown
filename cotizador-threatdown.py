@@ -48,7 +48,7 @@ else:
     
     df["Contrato (Meses)"], df["Rango"], df["Tipo de Licencia"] = zip(*df["Product Number"].apply(extraer_info_sku))
     
-    # Filtrar productos permitidos
+    # Filtrar productos permitidos y excluir Non-Commercial
     productos_permitidos = [
         "ThreatDown ADVANCED", "ThreatDown ADVANCED SERVER", "ThreatDown CORE", "ThreatDown CORE SERVER",
         "ThreatDown ELITE", "ThreatDown ELITE SERVER", "ThreatDown MOBILE SECURITY", "ThreatDown ULTIMATE",
@@ -57,6 +57,10 @@ else:
     
     df["Product Title"] = df["Product Title"].astype(str).str.replace("\n", " ", regex=True).str.strip()
     df_filtrado = df[df["Product Title"].isin(productos_permitidos)]
+    
+    # Excluir Non-Commercial de la columna E si existe
+    if "E" in df_filtrado.columns:
+        df_filtrado = df_filtrado[df_filtrado["E"].astype(str).str.contains("Business", case=False, na=False)]
     
     # Interfaz de usuario con Streamlit
     st.write("Selecciona los productos para la cotización:")
@@ -102,25 +106,6 @@ else:
         st.write(f"**Subtotal:** ${subtotal:,.2f}")
         st.write(f"**IVA (16%):** ${iva:,.2f}")
         st.write(f"**Gran Total:** ${gran_total:,.2f}")
-        
-        if st.button("Generar PDF"):
-            pdf = FPDF()
-            pdf.add_page()
-            pdf.set_font("Arial", size=12)
-            pdf.cell(200, 10, txt="Cotización ThreatDown", ln=True, align='C')
-            pdf.ln(10)
-            for index, row in df_cotizacion.iterrows():
-                pdf.cell(0, 10, txt=f"{row['#']}. {row['Producto']} - {row['Cantidad']} unidades - ${row['Precio Total']:,.2f}", ln=True)
-            pdf.ln(10)
-            pdf.cell(0, 10, txt=f"Subtotal: ${subtotal:,.2f}", ln=True)
-            pdf.cell(0, 10, txt=f"IVA (16%): ${iva:,.2f}", ln=True)
-            pdf.cell(0, 10, txt=f"Gran Total: ${gran_total:,.2f}", ln=True)
-            
-            pdf_path = "cotizacion.pdf"
-            pdf.output(pdf_path)
-            
-            with open(pdf_path, "rb") as pdf_file:
-                st.download_button(label="Descargar Cotización PDF", data=pdf_file, file_name="cotizacion.pdf", mime="application/pdf")
     else:
         st.warning("No has seleccionado ningún producto para cotizar.")
 
