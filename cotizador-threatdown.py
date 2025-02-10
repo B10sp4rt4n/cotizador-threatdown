@@ -1,27 +1,34 @@
 import streamlit as st
 import pandas as pd
 
-def cargar_datos():
-    ruta_archivo = 'precios_threatdown.xlsx'  # Ruta relativa al archivo
-    try:
-        df = pd.read_excel(ruta_archivo, engine='openpyxl')
-        return df
-    except FileNotFoundError:
-        st.error(f"El archivo {ruta_archivo} no se encontró. Por favor, verifica la ruta.")
-        return None
+# Cargar los datos desde tu archivo Excel
+df = pd.read_excel('precios_threatdown.xlsx', engine='openpyxl')
 
 def main():
     st.title("Cotizador de Productos")
 
-    # Cargar datos
-    df_productos = cargar_datos()
+    # Verificar si la columna 'Term (Month)' existe en el DataFrame
+    if 'Term (Month)' in df.columns:
+        # Obtener los valores mínimo y máximo de la columna 'Term (Month)'
+        min_term = int(df['Term (Month)'].min())
+        max_term = int(df['Term (Month)'].max())
 
-    if df_productos is not None:
-        st.write("Datos del archivo:")
-        st.dataframe(df_productos)
+        # Crear un slider para seleccionar el rango de duración
+        term_range = st.slider(
+            'Selecciona el rango de duración en meses',
+            min_value=min_term,
+            max_value=max_term,
+            value=(min_term, max_term)
+        )
+
+        # Filtrar el DataFrame según el rango seleccionado
+        filtered_df = df[df['Term (Month)'].between(term_range[0], term_range[1])]
+
+        # Mostrar el DataFrame filtrado
+        st.write("Productos filtrados por duración:")
+        st.dataframe(filtered_df)
     else:
-        st.write("No se pudieron cargar los datos.")
+        st.error("La columna 'Term (Month)' no se encuentra en el archivo Excel.")
 
 if __name__ == "__main__":
     main()
-
