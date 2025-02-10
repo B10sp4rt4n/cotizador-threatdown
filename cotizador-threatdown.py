@@ -17,8 +17,8 @@ data = data[data['Product Title'].str.contains('|'.join(productos_validos), na=F
 
 # Verificar nombres de columnas
 st.write("Columnas disponibles en el archivo:", data.columns)
-if 'MSRP' not in data.columns:
-    st.error("Error: La columna 'MSRP' no existe en el archivo Excel. Verifica el nombre y vuelve a intentarlo.")
+if 'MSRP USD' not in data.columns:
+    st.error("Error: La columna 'MSRP USD' no existe en el archivo Excel. Verifica el nombre y vuelve a intentarlo.")
 
 # Streamlit UI
 st.title("Cotizador ThreatDown")
@@ -38,7 +38,7 @@ if usuario == "admin" and password == "1234":
         if st.checkbox(f"{row['Product Title']} ({index})"):  # Se asegura de que cada checkbox tenga un ID único
             cantidad = st.number_input(f"Cantidad para {row['Product Title']}", min_value=int(row.get('Tier Min', 1)), max_value=int(row.get('Tier Max', 100)), step=1)
             descuento = st.number_input(f"Descuento (%) para {row['Product Title']}", min_value=0, max_value=100)
-            precio_unitario = row.get('MSRP', 0) * ((100 - descuento) / 100)
+            precio_unitario = row.get('MSRP USD', 0) * ((100 - descuento) / 100)
             total = precio_unitario * cantidad
             productos_seleccionados.append({"producto": row['Product Title'], "cantidad": cantidad, "precio_unitario": precio_unitario, "total": total})
     
