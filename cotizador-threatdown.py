@@ -11,9 +11,13 @@ def load_data():
 
 data = load_data()
 
-# Filtrar productos válidos
-productos_validos = ["ThreatDown Advanced", "Advanced Server", "Core", "Core Server", "Elite", "Elite Server", "Ultimate", "Ultimate Server", "Mobile"]
-data = data[data['Product Title'].str.contains('|'.join(productos_validos), na=False)]
+# Filtrar productos que solo sean ThreatDown
+productos_validos = [
+    "ThreatDown Core", "ThreatDown Core Server", "ThreatDown Advanced", "ThreatDown Advanced Server",
+    "ThreatDown Elite", "ThreatDown Elite Server", "ThreatDown Ultimate", "ThreatDown Ultimate Server",
+    "ThreatDown Mobile"
+]
+data = data[data['Product Title'].isin(productos_validos)]
 
 # Verificar nombres de columnas
 st.write("Columnas disponibles en el archivo:", data.columns)
@@ -33,14 +37,14 @@ if usuario == "admin" and password == "1234":
     cotizador = st.text_input("Nombre del que cotiza")
     puesto = st.text_input("Puesto del que cotiza")
     
-    productos_seleccionados = []
-    for index, row in data.iterrows():
-        if st.checkbox(f"{row['Product Title']} ({index})"):  # Se asegura de que cada checkbox tenga un ID único
-            cantidad = st.number_input(f"Cantidad para {row['Product Title']}", min_value=int(row.get('Tier Min', 1)), max_value=int(row.get('Tier Max', 100)), step=1)
-            descuento = st.number_input(f"Descuento (%) para {row['Product Title']}", min_value=0, max_value=100)
-            precio_unitario = row.get('MSRP USD', 0) * ((100 - descuento) / 100)
-            total = precio_unitario * cantidad
-            productos_seleccionados.append({"producto": row['Product Title'], "cantidad": cantidad, "precio_unitario": precio_unitario, "total": total})
+    # Dropdown para seleccionar productos
+    producto_seleccionado = st.selectbox("Selecciona un producto", productos_validos)
+    cantidad = st.number_input(f"Cantidad para {producto_seleccionado}", min_value=1, step=1)
+    descuento = st.number_input(f"Descuento (%) para {producto_seleccionado}", min_value=0, max_value=100)
+    precio_unitario = data.loc[data['Product Title'] == producto_seleccionado, 'MSRP USD'].values[0] * ((100 - descuento) / 100)
+    total = precio_unitario * cantidad
+    
+    productos_seleccionados = [{"producto": producto_seleccionado, "cantidad": cantidad, "precio_unitario": precio_unitario, "total": total}]
     
     if st.button("Generar Cotización"):
         subtotal = sum(p["total"] for p in productos_seleccionados)
@@ -79,4 +83,5 @@ if usuario == "admin" and password == "1234":
         with open("cotizacion_threatdown.pdf", "rb") as file:
             st.download_button("Descargar PDF", file, "cotizacion_threatdown.pdf")
 else:
+    st.error("Acceso denegado")
     st.error("Acceso denegado")
