@@ -92,7 +92,7 @@ if usuario == "admin" and password == "1234":
     
     productos_seleccionados = []
     for index, row in data.iterrows():
-        if st.checkbox(row['Product Title']):
+        if st.checkbox(f"{row['Product Title']} ({index})"):  # Se asegura de que cada checkbox tenga un ID único
             cantidad = st.number_input(f"Cantidad para {row['Product Title']}", min_value=int(row['Tier Min']), max_value=int(row['Tier Max']), step=1)
             descuento = st.number_input(f"Descuento (%) para {row['Product Title']}", min_value=0, max_value=100)
             precio_unitario = row['MSRP'] * ((100 - descuento) / 100)
@@ -109,4 +109,3 @@ if usuario == "admin" and password == "1234":
             st.download_button("Descargar PDF", file, "cotizacion_threatdown.pdf")
 else:
     st.error("Acceso denegado")
-
