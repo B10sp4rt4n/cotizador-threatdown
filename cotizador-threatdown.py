@@ -42,10 +42,26 @@ if usuario == "admin" and password == "1234":
     cantidad = st.number_input(f"Cantidad para {producto_seleccionado}", min_value=1, step=1)
     descuento = st.number_input(f"Descuento (%) para {producto_seleccionado}", min_value=0, max_value=100)
     
+    # Selector de duración de la licencia
+    duracion = st.selectbox("Duración de la licencia (meses)", [12, 24, 36])
+    
     # Verificar si el producto tiene precio registrado
-    precio_unitario = data.loc[data['Product Title'] == producto_seleccionado, 'MSRP USD']
-    if not precio_unitario.empty:
-        precio_unitario = precio_unitario.iloc[0] * ((100 - descuento) / 100)
+    precio_base = data.loc[data['Product Title'] == producto_seleccionado, 'MSRP USD']
+    if not precio_base.empty:
+        precio_base = precio_base.iloc[0]
+        
+        # Ajustar el precio según la duración de la licencia
+        if duracion == 12:
+            factor_duracion = 1.0  # Sin descuento
+        elif duracion == 24:
+            factor_duracion = 0.95  # 5% de descuento
+        elif duracion == 36:
+            factor_duracion = 0.90  # 10% de descuento
+        else:
+            factor_duracion = 1.0  # Por defecto, sin descuento
+        
+        precio_ajustado = precio_base * factor_duracion
+        precio_unitario = precio_ajustado * ((100 - descuento) / 100)
     else:
         st.error(f"No se encontró precio para el producto {producto_seleccionado}. Verifica el archivo de precios.")
         precio_unitario = 0
@@ -92,3 +108,4 @@ if usuario == "admin" and password == "1234":
             st.download_button("Descargar PDF", file, "cotizacion_threatdown.pdf")
 else:
     st.error("Acceso denegado")
+
