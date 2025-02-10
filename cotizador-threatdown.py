@@ -17,8 +17,8 @@ def main():
     df_productos = cargar_datos()
 
     if df_productos is not None:
-        # Asegurarse de que la columna 'term (month)' existe en el DataFrame
-        if 'term (month)' in df_productos.columns:
+        # Verificar si la columna 'Term (Month)' existe
+        if 'Term (Month)' in df_productos.columns:
             # Crear un selectbox para el período de duración
             periodo = st.selectbox(
                 'Selecciona el período de duración (meses):',
@@ -26,15 +26,16 @@ def main():
             )
 
             # Filtrar el DataFrame según el período seleccionado
-            df_filtrado = df_productos[df_productos['term (month)'] == periodo]
+            df_filtrado = df_productos[df_productos['Term (Month)'] == periodo]
 
             # Mostrar los datos filtrados
             st.write(f"Productos con un período de {periodo} meses:")
             st.dataframe(df_filtrado)
         else:
-            st.error("La columna 'term (month)' no se encuentra en el archivo.")
+            st.error("La columna 'Term (Month)' no se encuentra en el archivo.")
     else:
         st.write("No se pudieron cargar los datos.")
 
 if __name__ == "__main__":
     main()
+
