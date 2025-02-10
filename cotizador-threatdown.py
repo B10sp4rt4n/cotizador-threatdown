@@ -41,7 +41,15 @@ if usuario == "admin" and password == "1234":
     producto_seleccionado = st.selectbox("Selecciona un producto", productos_validos)
     cantidad = st.number_input(f"Cantidad para {producto_seleccionado}", min_value=1, step=1)
     descuento = st.number_input(f"Descuento (%) para {producto_seleccionado}", min_value=0, max_value=100)
-    precio_unitario = data.loc[data['Product Title'] == producto_seleccionado, 'MSRP USD'].values[0] * ((100 - descuento) / 100)
+    
+    # Verificar si el producto tiene precio registrado
+    precio_unitario = data.loc[data['Product Title'] == producto_seleccionado, 'MSRP USD']
+    if not precio_unitario.empty:
+        precio_unitario = precio_unitario.iloc[0] * ((100 - descuento) / 100)
+    else:
+        st.error(f"No se encontró precio para el producto {producto_seleccionado}. Verifica el archivo de precios.")
+        precio_unitario = 0
+    
     total = precio_unitario * cantidad
     
     productos_seleccionados = [{"producto": producto_seleccionado, "cantidad": cantidad, "precio_unitario": precio_unitario, "total": total}]
@@ -83,5 +91,4 @@ if usuario == "admin" and password == "1234":
         with open("cotizacion_threatdown.pdf", "rb") as file:
             st.download_button("Descargar PDF", file, "cotizacion_threatdown.pdf")
 else:
-    st.error("Acceso denegado")
     st.error("Acceso denegado")
