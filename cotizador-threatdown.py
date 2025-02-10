@@ -104,7 +104,20 @@ else:
                 pdf.ln(10)
                 pdf.cell(200, 10, f"Subtotal: ${subtotal:.2f}", ln=True)
                 pdf.cell(200, 10, f"IVA (16%): ${iva:.2f}", ln=True)
-                pdf.cell(200, 10,
-::contentReference[oaicite:0]{index=0}
- 
+                pdf.cell(200, 10, f"Total: ${total_final:.2f}", ln=True)
+                pdf.ln(10)
+                pdf.cell(200, 10, "Condiciones Comerciales:", ln=True)
+                pdf.multi_cell(0, 10, condiciones)
+                pdf.ln(10)
+                pdf.cell(200, 10, f"Atentamente: {cotizador}", ln=True)
+                pdf.cell(200, 10, f"Puesto: {puesto}", ln=True)
+                pdf.output("cotizacion_threatdown.pdf")
+                
+                st.success("Cotización generada correctamente. Descarga el PDF.")
+                with open("cotizacion_threatdown.pdf", "rb") as file:
+                    st.download_button("Descargar PDF", file, "cotizacion_threatdown.pdf")
+        else:
+            st.error("No se encontró un precio para la combinación seleccionada de producto, tipo de licencia y cantidad.")
+    else:
+        st.error("Acceso denegado")
 
