@@ -11,7 +11,7 @@ def cargar_datos():
         return None
 
 def main():
-    st.title("Selección de Producto")
+    st.title("Selector de Productos")
 
     # Cargar datos
     df_productos = cargar_datos()
@@ -19,19 +19,31 @@ def main():
     if df_productos is not None:
         # Verificar si la columna 'Product Title' existe
         if 'Product Title' in df_productos.columns:
-            # Eliminar filas con valores nulos en 'Product Title' y duplicados
-            df_productos = df_productos.dropna(subset=['Product Title']).drop_duplicates(subset=['Product Title'])
+            # Definir las palabras clave
+            palabras_clave = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'ULTIMATE', 'ULTIMATE SERVER', 'MOBILE']
 
-            # Obtener la lista de títulos de productos
-            lista_productos = df_productos['Product Title'].tolist()
+            # Filtrar los productos que contienen alguna de las palabras clave
+            filtro = df_productos['Product Title'].str.contains('|'.join(palabras_clave), case=False, na=False)
+            productos_filtrados = df_productos[filtro]
 
-            # Crear el selectbox para seleccionar un producto
-            producto_seleccionado = st.selectbox('Selecciona un producto de la lista:', lista_productos)
+            if not productos_filtrados.empty:
+                # Crear una lista de opciones para el selectbox
+                opciones_producto = productos_filtrados['Product Title'].unique().tolist()
 
-            # Mostrar detalles adicionales del producto seleccionado
-            detalles_producto = df_productos[df_productos['Product Title'] == producto_seleccionado]
-            st.write("Detalles del producto seleccionado:")
-            st.dataframe(detalles_producto)
+                # Selectbox para que el usuario seleccione un producto
+                producto_seleccionado = st.selectbox('Selecciona un producto:', opciones_producto)
+
+                # Obtener los detalles del producto seleccionado
+                detalles_producto = productos_filtrados[productos_filtrados['Product Title'] == producto_seleccionado]
+
+                # Seleccionar las columnas relevantes para mostrar
+                columnas_detalles = ['Product Number', 'Product Title', 'Term (Month)', 'Product Description', 'MSRP USD']
+
+                # Mostrar los detalles del producto en una tabla
+                st.write("Detalles del producto seleccionado:")
+                st.table(detalles_producto[columnas_detalles])
+            else:
+                st.warning("No se encontraron productos que coincidan con las palabras clave proporcionadas.")
         else:
             st.error("La columna 'Product Title' no se encuentra en el archivo.")
     else:
