@@ -11,41 +11,40 @@ def cargar_datos():
         return None
 
 def main():
-    st.title("Selector de Productos")
+    st.title("Filtro de Productos por Categoría y Período")
 
     # Cargar datos
     df_productos = cargar_datos()
 
     if df_productos is not None:
-        # Verificar si la columna 'Product Title' existe
-        if 'Product Title' in df_productos.columns:
-            # Definir las palabras clave
-            palabras_clave = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'ULTIMATE', 'ULTIMATE SERVER', 'MOBILE']
+        # Verificar si las columnas necesarias existen
+        columnas_necesarias = ['Product Title', 'Term (Month)']
+        if all(col in df_productos.columns for col in columnas_necesarias):
+            # Definir las categorías disponibles
+            categorias = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'ULTIMATE', 'ULTIMATE SERVER', 'MOBILE']
 
-            # Filtrar los productos que contienen alguna de las palabras clave
-            filtro = df_productos['Product Title'].str.contains('|'.join(palabras_clave), case=False, na=False)
-            productos_filtrados = df_productos[filtro]
+            # Crear el selectbox para filtrar por categoría
+            categoria_selected = st.selectbox('Selecciona la categoría del producto:', options=categorias)
 
-            if not productos_filtrados.empty:
-                # Crear una lista de opciones para el selectbox
-                opciones_producto = productos_filtrados['Product Title'].unique().tolist()
+            # Filtrar el DataFrame según la categoría seleccionada
+            df_filtrado = df_productos[df_productos['Product Title'].str.contains(categoria_selected, case=False, na=False)]
 
-                # Selectbox para que el usuario seleccione un producto
-                producto_seleccionado = st.selectbox('Selecciona un producto:', opciones_producto)
+            # Crear el selectbox para 'Term (Month)'
+            term_options = [12, 24, 36]
+            term_selected = st.selectbox('Selecciona el período de duración (meses):', options=term_options)
 
-                # Obtener los detalles del producto seleccionado
-                detalles_producto = productos_filtrados[productos_filtrados['Product Title'] == producto_seleccionado]
+            # Filtrar el DataFrame según el 'Term (Month)' seleccionado
+            df_filtrado = df_filtrado[df_filtrado['Term (Month)'] == term_selected]
 
-                # Seleccionar las columnas relevantes para mostrar
-                columnas_detalles = ['Product Number', 'Product Title', 'Term (Month)', 'Product Description', 'MSRP USD']
-
-                # Mostrar los detalles del producto en una tabla
-                st.write("Detalles del producto seleccionado:")
-                st.table(detalles_producto[columnas_detalles])
+            # Verificar si hay productos después de los filtros
+            if not df_filtrado.empty:
+                # Mostrar los productos filtrados
+                st.write(f"Productos en la categoría '{categoria_selected}' con un período de {term_selected} meses:")
+                st.dataframe(df_filtrado)
             else:
-                st.warning("No se encontraron productos que coincidan con las palabras clave proporcionadas.")
+                st.warning("No se encontraron productos que coincidan con los filtros aplicados.")
         else:
-            st.error("La columna 'Product Title' no se encuentra en el archivo.")
+            st.error("El archivo no contiene las columnas necesarias: 'Product Title' y/o 'Term (Month)'.")
     else:
         st.write("No se pudieron cargar los datos.")
 
