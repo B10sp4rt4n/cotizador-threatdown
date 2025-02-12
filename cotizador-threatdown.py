@@ -17,25 +17,36 @@ def main():
     df_productos = cargar_datos()
 
     if df_productos is not None:
-        # Verificar si la columna 'Product Title' existe
-        if 'Product Title' in df_productos.columns:
-            # Definir las opciones de licencia disponibles
-            opciones_licencia = ['CORE', 'ADVANCED', 'ELITE', 'ULTIMATE', 'MOBILE']
+        # Verificar si las columnas necesarias existen
+        columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max']
+        if all(col in df_productos.columns for col in columnas_necesarias):
+            # Crear el primer selectbox para 'Term (Month)'
+            term_options = [12, 24, 36]
+            term_selected = st.selectbox('Selecciona el período de duración (meses):', options=term_options)
 
-            # Crear un selectbox para que el usuario seleccione la opción de licencia
-            licencia_seleccionada = st.selectbox(
-                'Selecciona la opción de licencia:',
-                options=opciones_licencia
-            )
+            # Filtrar el DataFrame según el 'Term (Month)' seleccionado
+            df_filtrado = df_productos[df_productos['Term (Month)'] == term_selected]
 
-            # Filtrar el DataFrame según la opción de licencia seleccionada
-            df_filtrado = df_productos[df_productos['Product Title'].str.contains(licencia_seleccionada, case=False, na=False)]
+            # Definir las categorías disponibles para el segundo selectbox
+            categorias = ['CORE', 'ADVANCED', 'ELITE', 'ULTIMATE', 'MOBILE']
+
+            # Crear el segundo selectbox para filtrar por categoría
+            categoria_selected = st.selectbox('Selecciona la categoría del producto:', options=categorias)
+
+            # Filtrar el DataFrame según la categoría seleccionada
+            df_filtrado = df_filtrado[df_filtrado['Product Title'].str.contains(categoria_selected, case=False, na=False)]
+
+            # Input para el filtro numérico basado en 'Tier Min' y 'Tier Max'
+            numero = st.number_input('Ingresa un número para filtrar por Tier:', min_value=0, step=1)
+
+            # Filtrar el DataFrame según el número ingresado
+            df_filtrado = df_filtrado[(df_filtrado['Tier Min'] <= numero) & (df_filtrado['Tier Max'] >= numero)]
 
             # Mostrar los datos filtrados
-            st.write(f"Productos con la opción de licencia '{licencia_seleccionada}':")
+            st.write(f"Productos con un período de {term_selected} meses, categoría '{categoria_selected}' y Tier que incluye el número {numero}:")
             st.dataframe(df_filtrado)
         else:
-            st.error("La columna 'Product Title' no se encuentra en el archivo.")
+            st.error("El archivo no contiene las columnas necesarias: 'Term (Month)', 'Product Title', 'Tier Min' y/o 'Tier Max'.")
     else:
         st.write("No se pudieron cargar los datos.")
 
