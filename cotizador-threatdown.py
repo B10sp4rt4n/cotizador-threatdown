@@ -20,6 +20,13 @@ def main():
         # Verificar si las columnas necesarias existen
         columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max']
         if all(col in df_productos.columns for col in columnas_necesarias):
+            # Convertir las columnas 'Tier Min' y 'Tier Max' a numéricas, forzando errores a NaN
+            df_productos['Tier Min'] = pd.to_numeric(df_productos['Tier Min'], errors='coerce')
+            df_productos['Tier Max'] = pd.to_numeric(df_productos['Tier Max'], errors='coerce')
+
+            # Eliminar filas con NaN en 'Tier Min' o 'Tier Max'
+            df_productos = df_productos.dropna(subset=['Tier Min', 'Tier Max'])
+
             # Crear el primer selectbox para 'Term (Month)'
             term_options = [12, 24, 36]
             term_selected = st.selectbox('Selecciona el período de duración (meses):', options=term_options)
@@ -52,4 +59,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
