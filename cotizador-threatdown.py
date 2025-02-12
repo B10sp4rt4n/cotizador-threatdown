@@ -18,68 +18,83 @@ def main():
 
     if df_productos is not None:
         # Verificar si las columnas necesarias existen
-        columnas_necesarias = ['Product Title', 'Term (Month)', 'Tier Min', 'Tier Max', 'MSRP USD']
+        columnas_necesarias = ['Tier Min', 'Tier Max', 'Term (Month)', 'Product Title', 'MSRP USD']
         if all(col in df_productos.columns for col in columnas_necesarias):
-            # Filtrar los productos disponibles
-            productos_disponibles = [
-                'ThreatDown ADVANCED',
-                'ThreatDown ADVANCED SERVER',
-                'ThreatDown ELITE',
-                'ThreatDown ELITE SERVER',
-                'ThreatDown ULTIMATE',
-                'ThreatDown ULTIMATE SERVER',
-                'MOBILE SECURITY'
+            # Convertir las columnas 'Tier Min', 'Tier Max' y 'MSRP USD' a numéricas
+            df_productos['Tier Min'] = pd.to_numeric(df_productos['Tier Min'], errors='coerce')
+            df_productos['Tier Max'] = pd.to_numeric(df_productos['Tier Max'], errors='coerce')
+            df_productos['MSRP USD'] = pd.to_numeric(df_productos['MSRP USD'], errors='coerce')
+
+            # Eliminar filas con NaN en 'Tier Min', 'Tier Max' o 'MSRP USD'
+            df_productos = df_productos.dropna(subset=['Tier Min', 'Tier Max', 'MSRP USD'])
+
+            # Entrada de cantidad de licencias
+            cantidad_licencias = st.number_input('Ingresa la cantidad de licencias:', min_value=1, step=1)
+
+            # Filtrar productos que coincidan con la cantidad de licencias
+            df_filtrado = df_productos[
+                (df_productos['Tier Min'] <= cantidad_licencias) &
+                (df_productos['Tier Max'] >= cantidad_licencias)
             ]
 
-            # Crear selectbox para seleccionar el producto
-            producto_seleccionado = st.selectbox('Selecciona un producto:', productos_disponibles)
+            if not df_filtrado.empty:
+                # Selector de período de duración
+                term_options = [12, 24, 36]
+                term_selected = st.selectbox('Selecciona el período de duración (meses):', options=term_options)
 
-            # Filtrar el DataFrame según el producto seleccionado
-            df_producto = df_productos[df_productos['Product Title'] == producto_seleccionado]
+                # Filtrar por 'Term (Month)'
+                df_filtrado = df_filtrado[df_filtrado['Term (Month)'] == term_selected]
 
-            # Crear selectbox para seleccionar el período de duración
-            term_options = [12, 24, 36]
-            term_selected = st.selectbox('Selecciona el período de duración (meses):', options=term_options)
+                if not df_filtrado.empty:
+                    # Definir las opciones de productos
+                    productos_disponibles = [
+                        'ThreatDown ADVANCED',
+                        'ThreatDown ADVANCED SERVER',
+                        'ThreatDown ELITE',
+                        'ThreatDown ELITE SERVER',
+                        'ThreatDown ULTIMATE',
+                        'ThreatDown ULTIMATE SERVER',
+                        'MOBILE SECURITY'
+                    ]
 
-            # Filtrar el DataFrame según el 'Term (Month)' seleccionado
-            df_producto = df_producto[df_producto['Term (Month)'] == term_selected]
+                    # Filtrar productos disponibles
+                    df_filtrado = df_filtrado[
+                        df_filtrado['Product Title'].str.contains('|'.join(productos_disponibles), case=False, na=False)
+                    ]
 
-            if not df_producto.empty:
-                # Obtener los valores de 'Tier Min' y 'Tier Max'
-                tier_min = df_producto['Tier Min'].values[0]
-                tier_max = df_producto['Tier Max'].values[0]
+                    if not df_filtrado.empty:
+                        # Selector de producto
+                        producto_selected = st.selectbox('Selecciona el producto:', df_filtrado['Product Title'].unique())
 
-                # Input para la cantidad de licencias
-                cantidad_licencias = st.number_input(
-                    f'Ingresa la cantidad de licencias (entre {tier_min} y {tier_max}):',
-                    min_value=int(tier_min),
-                    max_value=int(tier_max),
-                    step=1
-                )
+                        # Obtener los detalles del producto seleccionado
+                        producto_detalles = df_filtrado[df_filtrado['Product Title'] == producto_selected].iloc[0]
 
-                # Calcular el subtotal
-                msrp_usd = df_producto['MSRP USD'].values[0]
-                subtotal = cantidad_licencias * msrp_usd
+                        # Calcular el subtotal
+                        subtotal = cantidad_licencias * producto_detalles['MSRP USD']
 
-                # Calcular el IVA (16%)
-                iva = subtotal * 0.16
+                        # Calcular el IVA (16%)
+                        iva = subtotal * 0.16
 
-                # Calcular el gran total
-                gran_total = subtotal + iva
+                        # Calcular el total
+                        total = subtotal + iva
 
-                # Mostrar los resultados
-                st.write("### Detalles de la Cotización")
-                st.write(f"**Producto:** {producto_seleccionado}")
-                st.write(f"**Período de Duración:** {term_selected} meses")
-                st.write(f"**Cantidad de Licencias:** {cantidad_licencias}")
-                st.write(f"**Precio Unitario (MSRP USD):** ${msrp_usd:,.2f}")
-                st.write(f"**Subtotal:** ${subtotal:,.2f}")
-                st.write(f"**IVA (16%):** ${iva:,.2f}")
-                st.write(f"**Gran Total:** ${gran_total:,.2f}")
+                        # Mostrar los resultados
+                        st.write("### Detalles de la Cotización")
+                        st.write(f"**Producto:** {producto_selected}")
+                        st.write(f"**Cantidad de Licencias:** {cantidad_licencias}")
+                        st.write(f"**Período de Duración:** {term_selected} meses")
+                        st.write(f"**Precio Unitario (MSRP USD):** ${producto_detalles['MSRP USD']:.2f}")
+                        st.write(f"**Subtotal:** ${subtotal:.2f}")
+                        st.write(f"**IVA (16%):** ${iva:.2f}")
+                        st.write(f"**Total:** ${total:.2f}")
+                    else:
+                        st.warning("No se encontraron productos disponibles para los criterios seleccionados.")
+                else:
+                    st.warning("No se encontraron productos para el período de duración seleccionado.")
             else:
-                st.warning("No se encontraron productos que coincidan con el período de duración seleccionado.")
+                st.warning("No se encontraron productos que coincidan con la cantidad de licencias ingresada.")
         else:
-            st.error("El archivo no contiene las columnas necesarias: 'Product Title', 'Term (Month)', 'Tier Min', 'Tier Max' y/o 'MSRP USD'.")
+            st.error("El archivo no contiene las columnas necesarias: 'Tier Min', 'Tier Max', 'Term (Month)', 'Product Title' y/o 'MSRP USD'.")
     else:
         st.write("No se pudieron cargar los datos.")
 
