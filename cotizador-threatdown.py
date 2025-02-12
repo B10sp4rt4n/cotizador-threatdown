@@ -51,22 +51,21 @@ def main():
 
             # Verificar si hay productos después de los filtros
             if not df_filtrado.empty:
-                # Crear un selectbox para que el usuario seleccione un producto
-                producto_selected = st.selectbox(
-                    'Selecciona un producto:',
-                    options=df_filtrado['Product Title'].unique()
-                )
+                # Crear una lista de opciones para el selectbox de productos
+                opciones_producto = df_filtrado['Product Title'].tolist()
 
-                # Filtrar el DataFrame para obtener los detalles del producto seleccionado
-                producto_detalles = df_filtrado[df_filtrado['Product Title'] == producto_selected]
+                # Selectbox para que el usuario seleccione un producto
+                producto_seleccionado = st.selectbox('Selecciona un producto de la lista filtrada:', opciones_producto)
 
-                # Seleccionar las columnas deseadas para mostrar
-                columnas_mostrar = ['Product Number', 'Product Title', 'Term (Month)', 'Product Description', 'MSRP USD']
-                producto_detalles = producto_detalles[columnas_mostrar]
+                # Obtener los detalles del producto seleccionado
+                detalles_producto = df_filtrado[df_filtrado['Product Title'] == producto_seleccionado]
+
+                # Seleccionar las columnas relevantes para mostrar
+                columnas_detalles = ['Product Number', 'Product Title', 'Term (Month)', 'Product Description', 'MSRP USD']
 
                 # Mostrar los detalles del producto en una tabla
                 st.write("Detalles del producto seleccionado:")
-                st.table(producto_detalles)
+                st.table(detalles_producto[columnas_detalles])
             else:
                 st.warning("No se encontraron productos que coincidan con los filtros aplicados.")
         else:
@@ -76,3 +75,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
