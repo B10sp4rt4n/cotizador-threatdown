@@ -18,7 +18,7 @@ def main():
 
     if df_productos is not None:
         # Verificar si las columnas necesarias existen
-        columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max']
+        columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max', 'Product Number', 'Product Description', 'MSRP USD']
         if all(col in df_productos.columns for col in columnas_necesarias):
             # Convertir las columnas 'Tier Min' y 'Tier Max' a numéricas, forzando errores a NaN
             df_productos['Tier Min'] = pd.to_numeric(df_productos['Tier Min'], errors='coerce')
@@ -49,25 +49,28 @@ def main():
             # Filtrar el DataFrame según el número ingresado
             df_filtrado = df_filtrado[(df_filtrado['Tier Min'] <= numero) & (df_filtrado['Tier Max'] >= numero)]
 
-            # Identificar columnas que comienzan con 'MSRP'
-            columnas_msrp = [col for col in df_filtrado.columns if col.startswith('MSRP')]
+            # Verificar si hay productos después de los filtros
+            if not df_filtrado.empty:
+                # Crear un selectbox para que el usuario seleccione un producto
+                producto_selected = st.selectbox(
+                    'Selecciona un producto:',
+                    options=df_filtrado['Product Title'].unique()
+                )
 
-            # Verificar si 'MSRP USD' está en las columnas identificadas
-            if 'MSRP USD' in columnas_msrp:
-                # Seleccionar columnas que no comienzan con 'MSRP' y añadir 'MSRP USD'
-                columnas_no_msrp = [col for col in df_filtrado.columns if not col.startswith('MSRP')]
-                columnas_seleccionadas = columnas_no_msrp + ['MSRP USD']
+                # Filtrar el DataFrame para obtener los detalles del producto seleccionado
+                producto_detalles = df_filtrado[df_filtrado['Product Title'] == producto_selected]
 
-                # Filtrar el DataFrame para incluir solo las columnas seleccionadas
-                df_filtrado = df_filtrado[columnas_seleccionadas]
+                # Seleccionar las columnas deseadas para mostrar
+                columnas_mostrar = ['Product Number', 'Product Title', 'Term (Month)', 'Product Description', 'MSRP USD']
+                producto_detalles = producto_detalles[columnas_mostrar]
+
+                # Mostrar los detalles del producto en una tabla
+                st.write("Detalles del producto seleccionado:")
+                st.table(producto_detalles)
             else:
-                st.warning("'MSRP USD' no se encuentra entre las columnas disponibles.")
-
-            # Mostrar los datos filtrados
-            st.write(f"Productos con un período de {term_selected} meses, categoría '{categoria_selected}' y Tier que incluye el número {numero}:")
-            st.dataframe(df_filtrado)
+                st.warning("No se encontraron productos que coincidan con los filtros aplicados.")
         else:
-            st.error("El archivo no contiene las columnas necesarias: 'Term (Month)', 'Product Title', 'Tier Min' y/o 'Tier Max'.")
+            st.error("El archivo no contiene las columnas necesarias: 'Term (Month)', 'Product Title', 'Tier Min', 'Tier Max', 'Product Number', 'Product Description' y/o 'MSRP USD'.")
     else:
         st.write("No se pudieron cargar los datos.")
 
