@@ -18,7 +18,7 @@ def main():
 
     if df_productos is not None:
         # Verificar si las columnas necesarias existen
-        columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max', 'MSRP USD']
+        columnas_necesarias = ['Term (Month)', 'Product Title', 'Tier Min', 'Tier Max']
         if all(col in df_productos.columns for col in columnas_necesarias):
             # Convertir las columnas 'Tier Min' y 'Tier Max' a numéricas, forzando errores a NaN
             df_productos['Tier Min'] = pd.to_numeric(df_productos['Tier Min'], errors='coerce')
@@ -49,19 +49,27 @@ def main():
             # Filtrar el DataFrame según el número ingresado
             df_filtrado = df_filtrado[(df_filtrado['Tier Min'] <= numero) & (df_filtrado['Tier Max'] >= numero)]
 
-            # Filtrar el DataFrame para incluir solo la columna 'MSRP USD'
-            if 'MSRP USD' in df_filtrado.columns:
-                df_filtrado = df_filtrado[['MSRP USD']]
-                # Mostrar los datos filtrados
-                st.write(f"Productos con un período de {term_selected} meses, categoría '{categoria_selected}' y Tier que incluye el número {numero}:")
-                st.dataframe(df_filtrado)
+            # Identificar columnas que comienzan con 'MSRP'
+            columnas_msrp = [col for col in df_filtrado.columns if col.startswith('MSRP')]
+
+            # Verificar si 'MSRP USD' está en las columnas identificadas
+            if 'MSRP USD' in columnas_msrp:
+                # Seleccionar columnas que no comienzan con 'MSRP' y añadir 'MSRP USD'
+                columnas_no_msrp = [col for col in df_filtrado.columns if not col.startswith('MSRP')]
+                columnas_seleccionadas = columnas_no_msrp + ['MSRP USD']
+
+                # Filtrar el DataFrame para incluir solo las columnas seleccionadas
+                df_filtrado = df_filtrado[columnas_seleccionadas]
             else:
-                st.warning("La columna 'MSRP USD' no se encuentra en los datos filtrados.")
+                st.warning("'MSRP USD' no se encuentra entre las columnas disponibles.")
+
+            # Mostrar los datos filtrados
+            st.write(f"Productos con un período de {term_selected} meses, categoría '{categoria_selected}' y Tier que incluye el número {numero}:")
+            st.dataframe(df_filtrado)
         else:
-            st.error("El archivo no contiene las columnas necesarias: 'Term (Month)', 'Product Title', 'Tier Min', 'Tier Max' y/o 'MSRP USD'.")
+            st.error("El archivo no contiene las columnas necesarias: 'Term (Month)', 'Product Title', 'Tier Min' y/o 'Tier Max'.")
     else:
         st.write("No se pudieron cargar los datos.")
 
 if __name__ == "__main__":
     main()
-
