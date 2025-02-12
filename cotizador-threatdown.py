@@ -17,36 +17,28 @@ def main():
     df_productos = cargar_datos()
 
     if df_productos is not None:
-        # Verificar si las columnas necesarias existen
-        if 'Term (Month)' in df_productos.columns and 'Product Title' in df_productos.columns:
-            # Crear un selectbox para el período de duración
-            periodo = st.selectbox(
-                'Selecciona el período de duración (meses):',
-                options=[12, 24, 26]
-            )
+        # Verificar si la columna 'Product Title' existe
+        if 'Product Title' in df_productos.columns:
+            # Definir las opciones de licencia disponibles
+            opciones_licencia = ['CORE', 'ADVANCED', 'ELITE', 'ULTIMATE', 'MOBILE']
 
-            # Definir las opciones de licencia disponibles para filtrar
-            opciones_licencia = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'MOBILE']
-
-            # Crear un selectbox para que el usuario seleccione la opción de licencia deseada
+            # Crear un selectbox para que el usuario seleccione la opción de licencia
             licencia_seleccionada = st.selectbox(
                 'Selecciona la opción de licencia:',
                 options=opciones_licencia
             )
 
-            # Filtrar el DataFrame según el período seleccionado y la opción de licencia en 'Product Title'
-            df_filtrado = df_productos[
-                (df_productos['Term (Month)'] == periodo) &
-                (df_productos['Product Title'].str.contains(licencia_seleccionada, case=False, na=False))
-            ]
+            # Filtrar el DataFrame según la opción de licencia seleccionada
+            df_filtrado = df_productos[df_productos['Product Title'].str.contains(licencia_seleccionada, case=False, na=False)]
 
             # Mostrar los datos filtrados
-            st.write(f"Productos con un período de {periodo} meses y opción de licencia '{licencia_seleccionada}':")
+            st.write(f"Productos con la opción de licencia '{licencia_seleccionada}':")
             st.dataframe(df_filtrado)
         else:
-            st.error("Las columnas 'Term (Month)' y/o 'Product Title' no se encuentran en el archivo.")
+            st.error("La columna 'Product Title' no se encuentra en el archivo.")
     else:
         st.write("No se pudieron cargar los datos.")
 
 if __name__ == "__main__":
     main()
+
