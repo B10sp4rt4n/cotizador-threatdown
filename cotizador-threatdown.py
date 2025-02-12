@@ -35,7 +35,7 @@ def main():
             df_filtrado = df_productos[df_productos['Term (Month)'] == term_selected]
 
             # Definir las categorías disponibles para el segundo selectbox
-            categorias = ['CORE', 'ADVANCED', 'ELITE', 'ULTIMATE', 'MOBILE']
+            categorias = ['CORE', 'CORE SERVER','ADVANCED', 'ADVANCED SERVER','ELITE','ELITE SERVER','ULTIMATE','ULTIMATE SERVER', 'MOBILE']
 
             # Crear el segundo selectbox para filtrar por categoría
             categoria_selected = st.selectbox('Selecciona la categoría del producto:', options=categorias)
