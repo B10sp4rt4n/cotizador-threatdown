@@ -11,28 +11,29 @@ def cargar_datos():
         return None
 
 def main():
-    st.title("Filtrado de Productos por Título")
+    st.title("Selección de Producto")
 
     # Cargar datos
     df_productos = cargar_datos()
 
     if df_productos is not None:
-        # Definir las palabras clave para el filtrado
-        palabras_clave = ["CORE", "CORE SERVER", "ADVANCED", "ADVANCED SERVER", 
-                          "ELITE", "ELITE SERVER", "ULTIMATE", "ULTIMATE SERVER", "MOBILE"]
+        # Verificar si la columna 'Product Title' existe
+        if 'Product Title' in df_productos.columns:
+            # Eliminar filas con valores nulos en 'Product Title' y duplicados
+            df_productos = df_productos.dropna(subset=['Product Title']).drop_duplicates(subset=['Product Title'])
 
-        # Crear una expresión regular que combine todas las palabras clave
-        patron = '|'.join(palabras_clave)
+            # Obtener la lista de títulos de productos
+            lista_productos = df_productos['Product Title'].tolist()
 
-        # Filtrar el DataFrame para incluir solo los productos cuyos títulos contienen las palabras clave
-        df_filtrado = df_productos[df_productos['Product Title'].str.contains(patron, case=False, na=False)]
+            # Crear el selectbox para seleccionar un producto
+            producto_seleccionado = st.selectbox('Selecciona un producto de la lista:', lista_productos)
 
-        # Verificar si hay productos después del filtrado
-        if not df_filtrado.empty:
-            st.write("Productos que coinciden con las palabras clave especificadas:")
-            st.dataframe(df_filtrado)
+            # Mostrar detalles adicionales del producto seleccionado
+            detalles_producto = df_productos[df_productos['Product Title'] == producto_seleccionado]
+            st.write("Detalles del producto seleccionado:")
+            st.dataframe(detalles_producto)
         else:
-            st.warning("No se encontraron productos que coincidan con las palabras clave especificadas.")
+            st.error("La columna 'Product Title' no se encuentra en el archivo.")
     else:
         st.write("No se pudieron cargar los datos.")
 
