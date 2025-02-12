@@ -25,32 +25,24 @@ def main():
                 options=[12, 24, 26]
             )
 
-            # Definir las opciones de licencias disponibles para filtrar
-            opciones_licencias = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'MOBILE']
+            # Definir las opciones de licencia disponibles para filtrar
+            opciones_licencia = ['CORE', 'CORE SERVER', 'ADVANCED', 'ADVANCED SERVER', 'ELITE', 'ELITE SERVER', 'MOBILE']
 
-            # Crear un multiselect para que el usuario seleccione las licencias deseadas
-            licencias_seleccionadas = st.multiselect(
-                'Selecciona las opciones de licencia para filtrar los productos:',
-                options=opciones_licencias,
-                default=opciones_licencias  # Puedes cambiar esto según tus necesidades
+            # Crear un selectbox para que el usuario seleccione la opción de licencia deseada
+            licencia_seleccionada = st.selectbox(
+                'Selecciona la opción de licencia:',
+                options=opciones_licencia
             )
 
-            # Verificar que se haya seleccionado al menos una opción de licencia
-            if licencias_seleccionadas:
-                # Crear un patrón de búsqueda uniendo las licencias seleccionadas con el operador OR '|'
-                patron_busqueda = '|'.join(licencias_seleccionadas)
+            # Filtrar el DataFrame según el período seleccionado y la opción de licencia en 'Product Title'
+            df_filtrado = df_productos[
+                (df_productos['Term (Month)'] == periodo) &
+                (df_productos['Product Title'].str.contains(licencia_seleccionada, case=False, na=False))
+            ]
 
-                # Filtrar el DataFrame según el período seleccionado y las licencias en 'Product Title'
-                df_filtrado = df_productos[
-                    (df_productos['Term (Month)'] == periodo) &
-                    (df_productos['Product Title'].str.contains(patron_busqueda, case=False, na=False))
-                ]
-
-                # Mostrar los datos filtrados
-                st.write(f"Productos con un período de {periodo} meses y títulos que contienen las opciones de licencia seleccionadas:")
-                st.dataframe(df_filtrado)
-            else:
-                st.warning("Por favor, selecciona al menos una opción de licencia para filtrar los productos.")
+            # Mostrar los datos filtrados
+            st.write(f"Productos con un período de {periodo} meses y opción de licencia '{licencia_seleccionada}':")
+            st.dataframe(df_filtrado)
         else:
             st.error("Las columnas 'Term (Month)' y/o 'Product Title' no se encuentran en el archivo.")
     else:
