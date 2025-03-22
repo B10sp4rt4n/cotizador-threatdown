@@ -68,6 +68,7 @@ for prod in seleccion:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
 # Mostrar desglose original con descuentos en cascada
+total = 0
 if cotizacion:
     df_cotizacion = pd.DataFrame(cotizacion)
     st.subheader("Resumen de Cotización (con descuentos en cascada)")
@@ -78,6 +79,7 @@ if cotizacion:
 # NUEVA TABLA INDEPENDIENTE AL FINAL
 st.subheader("Análisis independiente: Descuento directo sobre precio de lista")
 
+total_descuento = 0
 if productos_para_tabla_secundaria:
     tabla_descuento = []
     for item in productos_para_tabla_secundaria:
@@ -107,4 +109,12 @@ if productos_para_tabla_secundaria:
 else:
     st.info("Aún no hay productos con precios de lista válidos para aplicar descuento directo.")
 
+# Cálculo de utilidad y margen
+if total > 0 and total_descuento > 0:
+    utilidad = total - total_descuento
+    margen = (utilidad / total) * 100
+    st.subheader("Utilidad de la operación")
+    col1, col2 = st.columns(2)
+    col1.metric("Utilidad total", f"${utilidad:,.2f}")
+    col2.metric("Margen (%)", f"{margen:.2f}%")
 
