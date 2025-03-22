@@ -8,8 +8,7 @@ def cargar_datos():
     df = pd.read_excel("precios_threatdown.xlsx")
     df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
     df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
-    df = df.dropna(subset=["Tier Min", "Tier Max"])
-    return df
+    return df.dropna(subset=["Tier Min", "Tier Max"])
 
 df_precios = cargar_datos()
 
@@ -28,6 +27,8 @@ seleccion = st.multiselect("Selecciona los productos que deseas cotizar:", produ
 
 # Mostrar precios y permitir elegir cantidades y descuentos
 cotizacion = []
+productos_para_tabla_secundaria = []
+
 for prod in seleccion:
     df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod]
     cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1, step=1)
@@ -38,16 +39,14 @@ for prod in seleccion:
         fila = df_rango.iloc[0]
         precio_base = fila["MSRP USD"]
 
-        # Descuentos personalizados por producto
+        # Descuentos personalizados por producto (cotización base)
         item_disc = st.number_input(f"Descuento 'Item' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
         channel_disc = st.number_input(f"Descuento 'Channel Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
         deal_reg_disc = st.number_input(f"Descuento 'Deal Reg. Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
 
-        # Aplicar descuentos
         precio1 = precio_base * (1 - item_disc / 100)
         total_channel = channel_disc + deal_reg_disc
         precio_final = precio1 * (1 - total_channel / 100)
-
         subtotal = precio_final * cantidad
 
         cotizacion.append({
@@ -59,14 +58,53 @@ for prod in seleccion:
             "Precio Final Unitario": round(precio_final, 2),
             "Subtotal": round(subtotal, 2)
         })
+
+        productos_para_tabla_secundaria.append({
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Unitario de Lista": precio_base
+        })
     else:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
-# Mostrar desglose
+# Mostrar desglose original con descuentos en cascada
 if cotizacion:
     df_cotizacion = pd.DataFrame(cotizacion)
-    st.subheader("Resumen de Cotización")
+    st.subheader("Resumen de Cotización (con descuentos en cascada)")
     st.dataframe(df_cotizacion)
     total = df_cotizacion["Subtotal"].sum()
-    st.success(f"Total: ${total:,.2f}")
+    st.success(f"Total con descuentos aplicados: ${total:,.2f}")
+
+# NUEVA TABLA INDEPENDIENTE AL FINAL
+st.subheader("Análisis independiente: Descuento directo sobre precio de lista")
+
+if productos_para_tabla_secundaria:
+    tabla_descuento = []
+    for item in productos_para_tabla_secundaria:
+        prod = item["Producto"]
+        cantidad = item["Cantidad"]
+        precio_unitario = item["Precio Unitario de Lista"]
+        precio_total_lista = precio_unitario * cantidad
+
+        descuento_directo = st.number_input(f"Descuento directo (%) sobre lista para '{prod}':",
+                                            min_value=0.0, max_value=100.0, value=0.0,
+                                            key=f"direct_discount_{prod}")
+        precio_con_descuento = precio_total_lista * (1 - descuento_directo / 100)
+
+        tabla_descuento.append({
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Unitario de Lista": round(precio_unitario, 2),
+            "Precio Total de Lista": round(precio_total_lista, 2),
+            "Descuento %": descuento_directo,
+            "Precio Total con Descuento": round(precio_con_descuento, 2)
+        })
+
+    df_tabla_descuento = pd.DataFrame(tabla_descuento)
+    st.dataframe(df_tabla_descuento)
+    total_descuento = df_tabla_descuento["Precio Total con Descuento"].sum()
+    st.success(f"Total con descuentos directos sobre precio de lista: ${total_descuento:,.2f}")
+else:
+    st.info("Aún no hay productos con precios de lista válidos para aplicar descuento directo.")
+
 
