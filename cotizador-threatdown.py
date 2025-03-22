@@ -1,5 +1,3 @@
-# cotizador_threatdown.py
-
 import streamlit as st
 import pandas as pd
 
@@ -13,13 +11,14 @@ df_precios = cargar_datos()
 st.title("Cotizador ThreatDown")
 
 # Mostrar productos disponibles
-productos = df_precios["Producto"].unique()
+productos = df_precios["Product Title"].unique()
 seleccion = st.multiselect("Selecciona los productos que deseas cotizar:", productos)
 
 # Mostrar precios y permitir elegir cantidades
 cotizacion = []
 for prod in seleccion:
-    precio_unitario = df_precios[df_precios["Producto"] == prod]["Precio Unitario"].values[0]
+    fila = df_precios[df_precios["Product Title"] == prod].iloc[0]
+    precio_unitario = fila["MSRP USD"]
     cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1, step=1)
     subtotal = precio_unitario * cantidad
     cotizacion.append({
@@ -36,7 +35,3 @@ if cotizacion:
     st.dataframe(df_cotizacion)
     total = df_cotizacion["Subtotal"].sum()
     st.success(f"Total: ${total:,.2f}")
-
-# (Opcional) Botón para exportar a Excel o PDF más adelante
-
-
