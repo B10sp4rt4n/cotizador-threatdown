@@ -70,4 +70,3 @@ if cotizacion:
     total = df_cotizacion["Subtotal"].sum()
     st.success(f"Total: ${total:,.2f}")
 
-
