@@ -5,7 +5,12 @@ import pandas as pd
 # Cargar precios desde el archivo Excel
 @st.cache_data
 def cargar_datos():
-    return pd.read_excel("precios_threatdown.xlsx")
+    df = pd.read_excel("precios_threatdown.xlsx")
+    # Convertir Tier Min y Tier Max a números, forzar errores a NaN y eliminar filas inválidas
+    df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
+    df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
+    df = df.dropna(subset=["Tier Min", "Tier Max"])
+    return df
 
 df_precios = cargar_datos()
 
