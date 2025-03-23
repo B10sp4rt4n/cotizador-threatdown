@@ -1,4 +1,93 @@
 
+from reportlab.lib.pagesizes import LETTER
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+import os
+
+def generar_pdf_cotizacion(df_venta, encabezado, logo_path):
+    output_path = "cotizacion_cliente.pdf"
+    c = canvas.Canvas(output_path, pagesize=LETTER)
+    width, height = LETTER
+
+    color_fondo = colors.HexColor("#003366")
+    color_texto_header = colors.white
+
+    if logo_path and os.path.exists(logo_path):
+        c.drawImage(logo_path, inch * 0.5, height - inch * 1.2, width=100, preserveAspectRatio=True, mask='auto')
+
+    y = height - inch * 1.4
+    c.setFont("Helvetica-Bold", 14)
+    c.setFillColor(color_fondo)
+    c.drawString(inch * 3, y, "COTIZACIÓN COMERCIAL")
+    c.setFillColor(colors.black)
+    y -= 30
+
+    c.setFont("Helvetica", 10)
+    for campo in ["cliente", "contacto", "propuesta", "fecha", "responsable"]:
+        valor = encabezado.get(campo, "")
+        c.drawString(inch * 0.5, y, f"{campo.capitalize()}: {valor}")
+        y -= 15
+
+    y -= 5
+    c.setFont("Helvetica-Bold", 11)
+    c.drawString(inch * 0.5, y, "Detalle de productos:")
+    y -= 20
+
+    data = [["Producto", "Cantidad", "Precio Unitario", "Total"]]
+    total = 0
+    for _, row in df_venta.iterrows():
+        data.append([
+            row["Producto"],
+            str(row["Cantidad"]),
+            f"${row['Precio Unitario de Lista']:,.2f}",
+            f"${row['Precio Total con Descuento']:,.2f}"
+        ])
+        total += row["Precio Total con Descuento"]
+
+    data.append(["", "", "Total:", f"${total:,.2f}"])
+
+    table = Table(data, colWidths=[240, 60, 100, 100])
+    table.setStyle(TableStyle([
+        ('BACKGROUND', (0, 0), (-1, 0), color_fondo),
+        ('TEXTCOLOR', (0, 0), (-1, 0), color_texto_header),
+        ('ALIGN', (1, 1), (-1, -1), 'CENTER'),
+        ('FONTNAME', (0, 0), (-1, 0), 'Helvetica-Bold'),
+        ('FONTNAME', (0, 1), (-1, -1), 'Helvetica'),
+        ('FONTSIZE', (0, 0), (-1, -1), 9),
+        ('BOTTOMPADDING', (0, 0), (-1, 0), 8),
+        ('GRID', (0, 0), (-1, -1), 0.25, colors.grey),
+    ]))
+
+    table.wrapOn(c, width, height)
+    table_height = len(data) * 18
+    table.drawOn(c, inch * 0.5, y - table_height)
+
+    y_final = y - table_height - 30
+
+    c.setFont("Helvetica", 10)
+    c.drawString(inch * 0.5, y_final, "Atentamente,")
+    c.setFont("Helvetica-Bold", 10)
+    c.drawString(inch * 0.5, y_final - 15, encabezado.get("responsable", ""))
+    y_final -= 35
+
+    c.setFont("Helvetica-Oblique", 8)
+    condiciones = [
+        "Cotización válida por 15 días.",
+        "Precios en USD más IVA.",
+        "Sujeto a disponibilidad de producto.",
+        "Para dudas o aclaraciones, contáctenos a contacto@synappssys.com"
+    ]
+    for cond in condiciones:
+        c.drawString(inch * 0.5, y_final, cond)
+        y_final -= 12
+
+    c.save()
+    return output_path
+
+
+
 import streamlit as st
 import pandas as pd
 import sqlite3
@@ -204,23 +293,23 @@ else:
     st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
 if precio_venta_total > 0 and costo_total > 0:
+        st.markdown("### 📤 Exportación")
+        st.markdown("Puedes exportar esta propuesta con formato profesional para tu cliente:")
+    
+    if tabla_descuento and cliente and propuesta:
+        encabezado_cliente = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable
+        }
+    
+        df_exportable = pd.DataFrame(tabla_descuento)
+        excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
+    
+        st.download_button(
 
-st.markdown("### 📤 Exportación")
-st.markdown("Puedes exportar esta propuesta con formato profesional para tu cliente:")
-
-if tabla_descuento and cliente and propuesta:
-    encabezado_cliente = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable
-    }
-
-    df_exportable = pd.DataFrame(tabla_descuento)
-    excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
-
-    st.download_button(
         label="📥 Descargar propuesta actual (Excel)",
         data=excel_file,
         file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
@@ -341,6 +430,32 @@ st.markdown("Descarga en formato profesional para compartir con tu cliente:")
 
 st.download_button(
     label="📥 Descargar propuesta seleccionada (Excel)",
+
+st.markdown("🖨️ También puedes exportar esta propuesta en formato PDF:")
+
+# Preparar datos para PDF
+encabezado_pdf = {
+    "cliente": cotiz["cliente"],
+    "contacto": cotiz["contacto"],
+    "propuesta": cotiz["propuesta"],
+    "fecha": cotiz["fecha"],
+    "responsable": cotiz["responsable"]
+}
+df_export_hist = productos[productos["tipo_origen"] == "venta"].copy()
+df_export_hist.rename(columns={
+    "precio_unitario": "Precio Unitario de Lista",
+    "precio_total": "Precio Total con Descuento"
+}, inplace=True)
+
+ruta_pdf_hist = generar_pdf_cotizacion(df_export_hist, encabezado_pdf, "logo_empresa.png")
+with open(ruta_pdf_hist, "rb") as f:
+    st.download_button(
+        label="🖨️ Descargar propuesta seleccionada (PDF)",
+        data=f,
+        file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.pdf",
+        mime="application/pdf"
+    )
+
 
                 data=archivo_exportado,
                 file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.xlsx",
@@ -493,4 +608,37 @@ try:
     estatus_count.columns = ["Estatus", "Cantidad"]
     st.dataframe(estatus_count)
 except Exception as e:
-    st.warning("No se pudo generar el dashboard.")
+    st.warning("No se pudo generar el dashboard."
+
+
+# Exportar propuesta actual como PDF
+import os
+from reportlab.lib.pagesizes import LETTER
+from reportlab.pdfgen import canvas
+from reportlab.lib.units import inch
+from reportlab.lib import colors
+from reportlab.platypus import Table, TableStyle
+
+
+
+
+# Mostrar botón solo si hay propuesta actual válida
+if tabla_descuento and cliente and propuesta:
+    df_pdf = pd.DataFrame(tabla_descuento)
+    encabezado_pdf = {
+        "cliente": cliente,
+        "contacto": contacto,
+        "propuesta": propuesta,
+        "fecha": fecha.strftime('%Y-%m-%d'),
+        "responsable": responsable
+    }
+    ruta_pdf = generar_pdf_cotizacion(df_pdf, encabezado_pdf, "logo_empresa.png")
+    with open(ruta_pdf, "rb") as f:
+        st.download_button(
+            label="🖨️ Descargar propuesta actual (PDF)",
+            data=f,
+            file_name=f"cotizacion_{cliente}_{propuesta}.pdf",
+            mime="application/pdf"
+        )
+
+)
