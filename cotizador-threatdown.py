@@ -287,7 +287,9 @@ from fpdf import FPDF
 
 class CotizacionPDFConLogo(FPDF):
     def header(self):
-        import os\n        logo_path = os.path.join(os.path.dirname(__file__), "logo_empresa.png")\n        self.image(logo_path, x=10, y=8, w=50)
+                import os
+        logo_path = os.path.join(os.path.dirname(__file__), "logo_empresa.png")
+        self.image(logo_path, x=10, y=8, w=50)
         self.set_font("Helvetica", "B", 16)
         self.set_xy(70, 12)
         self.cell(0, 10, "Cotización de Servicios", ln=True, align="L")
