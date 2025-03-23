@@ -1,6 +1,7 @@
 
 import streamlit as st
 import pandas as pd
+from datetime import date
 
 # Cargar precios desde el archivo Excel
 @st.cache_data
@@ -13,6 +14,13 @@ def cargar_datos():
 df_precios = cargar_datos()
 
 st.title("Cotizador ThreatDown con Descuentos")
+
+# === DATOS DE ENCABEZADO ===
+st.sidebar.header("Datos de la cotización")
+cliente = st.sidebar.text_input("Cliente")
+propuesta = st.sidebar.text_input("Nombre de la propuesta")
+fecha = st.sidebar.date_input("Fecha", value=date.today())
+responsable = st.sidebar.text_input("Responsable / Vendedor")
 
 # Filtro 1: Selección del término (12, 24, 36 meses)
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
@@ -39,7 +47,6 @@ for prod in seleccion:
         fila = df_rango.iloc[0]
         precio_base = fila["MSRP USD"]
 
-        # Descuentos personalizados por producto (cotización base)
         item_disc = st.number_input(f"Descuento 'Item' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
         channel_disc = st.number_input(f"Descuento 'Channel Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
         deal_reg_disc = st.number_input(f"Descuento 'Deal Reg. Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
@@ -67,7 +74,15 @@ for prod in seleccion:
     else:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
-# Mostrar desglose original con descuentos en cascada
+# === Mostrar datos de encabezado ===
+if cliente or propuesta or responsable:
+    st.subheader("Datos de la cotización")
+    st.markdown(f"**Cliente:** {cliente}")
+    st.markdown(f"**Propuesta:** {propuesta}")
+    st.markdown(f"**Fecha:** {fecha.strftime('%Y-%m-%d')}")
+    st.markdown(f"**Responsable:** {responsable}")
+
+# === Cotización con descuentos en cascada ===
 costo_total = 0
 if cotizacion:
     df_cotizacion = pd.DataFrame(cotizacion)
@@ -76,7 +91,7 @@ if cotizacion:
     costo_total = df_cotizacion["Subtotal"].sum()
     st.success(f"Costo total con descuentos aplicados: ${costo_total:,.2f}")
 
-# NUEVA TABLA INDEPENDIENTE AL FINAL
+# === Análisis independiente: descuento directo ===
 st.subheader("Análisis independiente: Precio de venta con descuento directo sobre precio de lista")
 
 precio_venta_total = 0
@@ -109,7 +124,7 @@ if productos_para_tabla_secundaria:
 else:
     st.info("Aún no hay productos con precios de lista válidos para aplicar descuento directo.")
 
-# Cálculo de utilidad y margen (CORRECTO)
+# === Cálculo de utilidad y margen ===
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
@@ -117,5 +132,3 @@ if precio_venta_total > 0 and costo_total > 0:
     col1, col2 = st.columns(2)
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
     col2.metric("Margen (%)", f"{margen:.2f}%")
-
-
