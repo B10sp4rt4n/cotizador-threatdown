@@ -400,4 +400,3 @@ if 'cotizacion_id' in locals():
                 file_name=pdf_output_path,
                 mime="application/pdf"
             )
-
