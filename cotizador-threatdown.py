@@ -209,8 +209,24 @@ if menu == "Clientes":
 
 
 st.sidebar.header("Datos de la cotización")
-cliente = st.sidebar.text_input("Cliente")
-contacto = st.sidebar.text_input("Nombre de contacto")
+
+# =======================
+# Cargar clientes registrados
+# =======================
+conn = conectar_db()
+df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+conn.close()
+
+if df_clientes.empty:
+    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
+    st.stop()
+
+df_clientes["display"] = df_clientes["nombre"] + " " + df_clientes["apellido_paterno"] + " " + df_clientes["apellido_materno"] + " - " + df_clientes["empresa"]
+cliente_seleccionado = st.sidebar.selectbox("Selecciona un cliente", df_clientes["display"])
+cliente_row = df_clientes[df_clientes["display"] == cliente_seleccionado].iloc[0]
+cliente = cliente_row["empresa"]
+contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
+
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
