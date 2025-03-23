@@ -132,3 +132,4 @@ if precio_venta_total > 0 and costo_total > 0:
     col1, col2 = st.columns(2)
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
     col2.metric("Margen (%)", f"{margen:.2f}%")
+
