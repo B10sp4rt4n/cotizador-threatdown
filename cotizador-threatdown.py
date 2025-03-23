@@ -5,7 +5,6 @@ import sqlite3
 import os
 from datetime import date
 
-import shutil
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
@@ -23,7 +22,6 @@ def inicializar_db():
             propuesta TEXT,
             fecha TEXT,
             responsable TEXT,
-            cargo TEXT,
             total_venta REAL,
             total_costo REAL,
             utilidad REAL,
@@ -53,11 +51,11 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, cargo, total_venta, total_costo, utilidad, margen)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, vigencia, condiciones_comerciales)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
-        datos["responsable"], datos["cargo"], datos["total_venta"], datos["total_costo"],
+        datos["responsable"], datos["total_venta"], datos["total_costo"],
         datos["utilidad"], datos["margen"]
     ))
     cotizacion_id = cursor.lastrowid
@@ -90,10 +88,6 @@ def ver_historial():
     conn.close()
     return df
 
-# Eliminar base de datos anterior para desarrollo (opcional)
-if os.path.exists(DB_PATH):
-    os.remove(DB_PATH)
-
 # Inicializar base si es primera vez
 inicializar_db()
 
@@ -113,13 +107,19 @@ cliente = st.sidebar.text_input("Cliente")
 contacto = st.sidebar.text_input("Nombre de contacto")
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
-responsable = st.sidebar.text_input("Responsable / Quien entrega la propuesta")
-cargo_responsable = st.sidebar.text_input("Cargo del responsable")
-condiciones_comerciales = st.sidebar.text_area("Condiciones comerciales", value=
-    "Vigencia de la propuesta: 30 días naturales.\n"
-    "Precios en USD, no incluyen IVA.\n"
-    "Condiciones de pago: 50% anticipo, 50% contra entrega."
+responsable = st.sidebar.text_input("Responsable / Vendedor")
+
+vigencia = st.text_input(
+    "Vigencia de la propuesta",
+    value="30 días"
 )
+
+condiciones_comerciales = st.text_area(
+    "Condiciones de Pago y Comerciales",
+    value="Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.",
+    height=150
+)
+
 
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
@@ -213,8 +213,6 @@ if productos_para_tabla_secundaria:
 else:
     st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
-cotizacion_guardada = False
-
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
@@ -230,15 +228,15 @@ if precio_venta_total > 0 and costo_total > 0:
             "propuesta": propuesta,
             "fecha": fecha.strftime('%Y-%m-%d'),
             "responsable": responsable,
-            "cargo": cargo_responsable,
             "total_venta": precio_venta_total,
             "total_costo": costo_total,
             "utilidad": utilidad,
-            "margen": margen
+            "margen": margen,
+        "vigencia": vigencia,
+        "condiciones_comerciales": condiciones_comerciales
         }
         guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
-        cotizacion_guardada = True
 
 st.subheader("📋 Historial de cotizaciones")
 try:
@@ -247,164 +245,6 @@ try:
 except:
     st.warning("No hay cotizaciones guardadas aún.")
 
-
-
-
-
-
-# =============================
-# Botón para generar PDF desde cotización nueva o desde vista
-# =============================
-if st.button("📄 Generar PDF para cliente"):
-    cotizacion_id_final = None
-    datos_finales = None
-    productos_pdf = []
-
-    # Si ya hay un cotizacion_id (desde detalle), usarlo
-    if 'cotizacion_id' in locals():
-        cotizacion_id_final = cotizacion_id
-        datos_finales = datos
-        productos_pdf = df_venta.to_dict("records")
-
-    # Si no hay, intentar guardar una nueva cotización
-    elif precio_venta_total > 0 and costo_total > 0:
-        datos_finales = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable,
-            "cargo": cargo_responsable,
-            "total_venta": precio_venta_total,
-            "total_costo": costo_total,
-            "utilidad": utilidad,
-            "margen": margen
-        }
-        cotizacion_id_final = guardar_cotizacion(
-            datos_finales,
-            df_tabla_descuento.to_dict("records"),
-            df_cotizacion.to_dict("records")
-        )
-        productos_pdf = df_tabla_descuento.to_dict("records")
-        st.success("✅ Cotización guardada automáticamente para generar PDF")
-
-    if cotizacion_id_final and datos_finales:
-        pdf = CotizacionPDFConLogo()
-        pdf.responsable = datos_finales["responsable"]
-        pdf.cargo = datos_finales["cargo"]
-        pdf.add_page()
-
-        pdf.encabezado_cliente(datos_finales)
-        pdf.tabla_productos(productos_pdf)
-        pdf.totales(datos_finales["total_venta"])
-        pdf.condiciones()
-        pdf.firma()
-
-        pdf_output_path = f"cotizacion_cliente_{cotizacion_id_final}.pdf"
-        pdf.output(pdf_output_path)
-        with open(pdf_output_path, "rb") as file:
-            st.download_button(
-                label="📥 Descargar PDF de cotización",
-                data=file,
-                file_name=pdf_output_path,
-                mime="application/pdf"
-            )
-    else:
-        st.warning("No hay cotización válida para generar PDF.")
-
-# =============================
-if st.button("📄 Generar PDF para cliente"):
-    if not 'cotizacion_id' in locals():
-        # Si no se ha guardado aún, intentar guardar
-        if precio_venta_total > 0 and costo_total > 0:
-            datos = {
-                "cliente": cliente,
-                "contacto": contacto,
-                "propuesta": propuesta,
-                "fecha": fecha.strftime('%Y-%m-%d'),
-                "responsable": responsable,
-                "cargo": cargo_responsable,
-                "total_venta": precio_venta_total,
-                "total_costo": costo_total,
-                "utilidad": utilidad,
-                "margen": margen
-            }
-            cotizacion_id = guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
-            st.success("✅ Cotización guardada automáticamente para generar PDF")
-        else:
-            st.warning("Completa una cotización válida antes de generar PDF.")
-    
-    if 'cotizacion_id' in locals():
-        pdf = CotizacionPDFConLogo()
-        pdf.responsable = datos["responsable"]
-        pdf.cargo = datos["cargo"]
-        pdf.add_page()
-
-        productos = df_tabla_descuento.to_dict("records")
-        total_venta = datos["total_venta"]
-
-        pdf.encabezado_cliente(datos)
-        pdf.tabla_productos(productos)
-        pdf.totales(total_venta)
-        pdf.condiciones()
-        pdf.firma()
-
-        pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
-        pdf.output(pdf_output_path)
-        with open(pdf_output_path, "rb") as file:
-            st.download_button(
-                label="📥 Descargar PDF de cotización",
-                data=file,
-                file_name=pdf_output_path,
-                mime="application/pdf"
-            )
-
-# =============================
-if st.button("📄 Generar PDF para cliente"):
-    # Si no se ha guardado la cotización, guardarla primero
-    if not cotizacion_guardada and precio_venta_total > 0 and costo_total > 0:
-        datos = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable,
-            "cargo": cargo_responsable,
-            "total_venta": precio_venta_total,
-            "total_costo": costo_total,
-            "utilidad": utilidad,
-            "margen": margen
-        }
-        cotizacion_id = guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
-        st.success("✅ Cotización guardada automáticamente para generar PDF")
-        cotizacion_guardada = True
-
-    if 'cotizacion_id' in locals():
-        pdf = CotizacionPDFConLogo()
-        pdf.responsable = datos["responsable"]
-        pdf.cargo = datos["cargo"]
-        pdf.add_page()
-
-        productos = df_tabla_descuento.to_dict("records")
-        total_venta = datos["total_venta"]
-
-        pdf.encabezado_cliente(datos)
-        pdf.tabla_productos(productos)
-        pdf.totales(total_venta)
-        pdf.condiciones()
-        pdf.firma()
-
-        pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
-        pdf.output(pdf_output_path)
-        with open(pdf_output_path, "rb") as file:
-            st.download_button(
-                label="📥 Descargar PDF de cotización",
-                data=file,
-                file_name=pdf_output_path,
-                mime="application/pdf"
-            )
-    else:
-        st.warning("No hay cotización cargada para generar PDF.")
 
 
 # =============================
@@ -431,7 +271,6 @@ else:
         st.markdown(f"**Propuesta:** {datos['propuesta']}")
         st.markdown(f"**Fecha:** {datos['fecha']}")
         st.markdown(f"**Responsable:** {datos['responsable']}")
-        st.markdown(f"**Cargo:** {datos['cargo']}")
         st.markdown(f"**Total Venta:** ${datos['total_venta']:,.2f}")
         st.markdown(f"**Total Costo:** ${datos['total_costo']:,.2f}")
         st.markdown(f"**Utilidad:** ${datos['utilidad']:,.2f}")
@@ -511,37 +350,13 @@ class CotizacionPDFConLogo(FPDF):
     def firma(self):
         self.set_font("Helvetica", "", 10)
         self.cell(0, 8, "Atentamente,", ln=True)
-        self.cell(0, 8, f"{self.responsable}", ln=True)
-        self.cell(0, 8, f"{self.cargo}", ln=True)
+        self.cell(0, 8, "Salvador Pérez | Director de Tecnología", ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
 
-
 # Botón para generar PDF desde vista de detalle
-if 'cotizacion_id' in locals() or not cotizacion_guardada:
-    if not cotizacion_guardada and precio_venta_total > 0 and costo_total > 0:
-        datos = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable,
-            "cargo": cargo_responsable,
-            "total_venta": precio_venta_total,
-            "total_costo": costo_total,
-            "utilidad": utilidad,
-            "margen": margen
-        }
-        cotizacion_id = guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
-        st.success("✅ Cotización guardada automáticamente para generar PDF")
-        cotizacion_guardada = True
-
-    if 'cotizacion_id' in locals():
-
 if 'cotizacion_id' in locals():
     if st.button("📄 Generar PDF para cliente"):
         pdf = CotizacionPDFConLogo()
-        pdf.responsable = datos["responsable"]
-        pdf.cargo = datos["cargo"]
         pdf.add_page()
 
         datos_dict = {
