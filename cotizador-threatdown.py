@@ -230,3 +230,65 @@ try:
     st.dataframe(df_hist)
 except:
     st.warning("No hay cotizaciones guardadas aún.")
+
+
+
+# Vista detallada de cotización
+st.subheader("🔍 Ver detalle de cotización guardada")
+try:
+    df_hist = ver_historial()
+
+    if not df_hist.empty:
+        opciones = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
+        seleccion_detalle = st.selectbox("Selecciona una cotización para ver el detalle:", opciones)
+
+        if seleccion_detalle:
+            id_seleccionado = int(seleccion_detalle.split(" - ")[0])
+            conn = conectar_db()
+            detalle = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {id_seleccionado}", conn)
+            productos = pd.read_sql_query(f"SELECT * FROM detalle_productos WHERE cotizacion_id = {id_seleccionado}", conn)
+            conn.close()
+
+            cotiz = detalle.iloc[0]
+            st.markdown(f"**Cliente:** {cotiz['cliente']}")
+            st.markdown(f"**Contacto:** {cotiz['contacto']}")
+            st.markdown(f"**Propuesta:** {cotiz['propuesta']}")
+            st.markdown(f"**Fecha:** {cotiz['fecha']}")
+            st.markdown(f"**Responsable:** {cotiz['responsable']}")
+
+            st.markdown(f"**Total Venta:** ${cotiz['total_venta']:,.2f}")
+            st.markdown(f"**Total Costo:** ${cotiz['total_costo']:,.2f}")
+            st.markdown(f"**Utilidad:** ${cotiz['utilidad']:,.2f}")
+            st.markdown(f"**Margen:** {cotiz['margen']:.2f}%")
+
+            st.markdown("**Productos (Venta):**")
+            st.dataframe(productos[productos["tipo_origen"] == "venta"].drop(columns=["cotizacion_id", "tipo_origen"]))
+
+            st.markdown("**Productos (Costo):**")
+            st.dataframe(productos[productos["tipo_origen"] == "costo"].drop(columns=["cotizacion_id", "tipo_origen"]))
+except:
+    st.warning("No se pudo cargar el detalle de cotizaciones.")
+
+# Comparador de cotizaciones
+st.subheader("📊 Comparador de propuestas")
+try:
+    df_hist = ver_historial()
+
+    if not df_hist.empty:
+        opciones_multi = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
+        seleccion_multi = st.multiselect("Selecciona una o más propuestas para comparar:", opciones_multi)
+
+        if seleccion_multi:
+            ids = tuple(int(op.split(" - ")[0]) for op in seleccion_multi)
+            conn = conectar_db()
+            if len(ids) == 1:
+                query = f"SELECT * FROM cotizaciones WHERE id = {ids[0]}"
+            else:
+                query = f"SELECT * FROM cotizaciones WHERE id IN {ids}"
+            comparativo = pd.read_sql_query(query, conn)
+            conn.close()
+
+            st.dataframe(comparativo[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen"]])
+except:
+    st.warning("No se pudo mostrar el comparador.")
+
