@@ -5,6 +5,7 @@ import sqlite3
 import os
 from datetime import date
 
+import shutil
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
@@ -22,6 +23,7 @@ def inicializar_db():
             propuesta TEXT,
             fecha TEXT,
             responsable TEXT,
+            cargo TEXT,
             total_venta REAL,
             total_costo REAL,
             utilidad REAL,
@@ -88,6 +90,10 @@ def ver_historial():
     conn.close()
     return df
 
+# Eliminar base de datos anterior para desarrollo (opcional)
+if os.path.exists(DB_PATH):
+    os.remove(DB_PATH)
+
 # Inicializar base si es primera vez
 inicializar_db()
 
@@ -107,7 +113,13 @@ cliente = st.sidebar.text_input("Cliente")
 contacto = st.sidebar.text_input("Nombre de contacto")
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
-responsable = st.sidebar.text_input("Responsable / Vendedor")
+responsable = st.sidebar.text_input("Responsable / Quien entrega la propuesta")
+cargo_responsable = st.sidebar.text_input("Cargo del responsable")
+condiciones_comerciales = st.sidebar.text_area("Condiciones comerciales", value=
+    "Vigencia de la propuesta: 30 días naturales.\n"
+    "Precios en USD, no incluyen IVA.\n"
+    "Condiciones de pago: 50% anticipo, 50% contra entrega."
+)
 
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
@@ -216,6 +228,7 @@ if precio_venta_total > 0 and costo_total > 0:
             "propuesta": propuesta,
             "fecha": fecha.strftime('%Y-%m-%d'),
             "responsable": responsable,
+            "cargo": cargo_responsable,
             "total_venta": precio_venta_total,
             "total_costo": costo_total,
             "utilidad": utilidad,
@@ -257,6 +270,7 @@ else:
         st.markdown(f"**Propuesta:** {datos['propuesta']}")
         st.markdown(f"**Fecha:** {datos['fecha']}")
         st.markdown(f"**Responsable:** {datos['responsable']}")
+        st.markdown(f"**Cargo:** {datos['cargo']}")
         st.markdown(f"**Total Venta:** ${datos['total_venta']:,.2f}")
         st.markdown(f"**Total Costo:** ${datos['total_costo']:,.2f}")
         st.markdown(f"**Utilidad:** ${datos['utilidad']:,.2f}")
@@ -336,13 +350,16 @@ class CotizacionPDFConLogo(FPDF):
     def firma(self):
         self.set_font("Helvetica", "", 10)
         self.cell(0, 8, "Atentamente,", ln=True)
-        self.cell(0, 8, "Salvador Pérez | Director de Tecnología", ln=True)
+        self.cell(0, 8, f"{self.responsable}", ln=True)
+        self.cell(0, 8, f"{self.cargo}", ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
 
 # Botón para generar PDF desde vista de detalle
 if 'cotizacion_id' in locals():
     if st.button("📄 Generar PDF para cliente"):
         pdf = CotizacionPDFConLogo()
+        pdf.responsable = datos["responsable"]
+        pdf.cargo = datos["cargo"]
         pdf.add_page()
 
         datos_dict = {
