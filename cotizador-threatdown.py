@@ -343,7 +343,3 @@ if df_tabla_descuento and cliente and propuesta:
         file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-    st.warning("No hay cotizaciones guardadas aún.")
-
-
