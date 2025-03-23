@@ -360,10 +360,10 @@ class CotizacionPDFConLogo(FPDF):
         self.multi_cell(0, 6, f"{condiciones}")
         self.ln(10)
 
-    def firma(self):
+    def firma(self, responsable):
         self.set_font("Helvetica", "", 10)
         self.cell(0, 8, "Atentamente,", ln=True)
-        self.cell(0, 8, "Salvador Pérez | Director de Tecnología", ln=True)
+        self.cell(0, 8, responsable, ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
 
 # Botón para generar PDF desde vista de detalle
@@ -386,7 +386,7 @@ if 'cotizacion_id' in locals():
         pdf.tabla_productos(productos)
         pdf.totales(total_venta)
         pdf.condiciones(datos["vigencia"], datos["condiciones_comerciales"])
-        pdf.firma()
+        pdf.firma(datos["responsable"])
 
         pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
         pdf.output(pdf_output_path)
