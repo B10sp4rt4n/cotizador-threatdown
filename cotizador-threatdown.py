@@ -344,8 +344,3 @@ if df_tabla_descuento and cliente and propuesta:
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
 
-
-            st.dataframe(comparativo[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen"]])
-except:
-    st.warning("No se pudo mostrar el comparador.")
-
