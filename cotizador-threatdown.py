@@ -249,6 +249,57 @@ except:
 
 
 
+
+# =============================
+# Botón para generar PDF desde vista o desde cotización nueva
+# =============================
+if st.button("📄 Generar PDF para cliente"):
+    # Si no se ha guardado la cotización, guardarla primero
+    if not cotizacion_guardada and precio_venta_total > 0 and costo_total > 0:
+        datos = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable,
+            "cargo": cargo_responsable,
+            "total_venta": precio_venta_total,
+            "total_costo": costo_total,
+            "utilidad": utilidad,
+            "margen": margen
+        }
+        cotizacion_id = guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
+        st.success("✅ Cotización guardada automáticamente para generar PDF")
+        cotizacion_guardada = True
+
+    if 'cotizacion_id' in locals():
+        pdf = CotizacionPDFConLogo()
+        pdf.responsable = datos["responsable"]
+        pdf.cargo = datos["cargo"]
+        pdf.add_page()
+
+        productos = df_tabla_descuento.to_dict("records")
+        total_venta = datos["total_venta"]
+
+        pdf.encabezado_cliente(datos)
+        pdf.tabla_productos(productos)
+        pdf.totales(total_venta)
+        pdf.condiciones()
+        pdf.firma()
+
+        pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
+        pdf.output(pdf_output_path)
+        with open(pdf_output_path, "rb") as file:
+            st.download_button(
+                label="📥 Descargar PDF de cotización",
+                data=file,
+                file_name=pdf_output_path,
+                mime="application/pdf"
+            )
+    else:
+        st.warning("No hay cotización cargada para generar PDF.")
+
+
 # =============================
 # Ver detalle de cotización seleccionada
 # =============================
