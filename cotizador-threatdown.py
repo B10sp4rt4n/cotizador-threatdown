@@ -41,6 +41,14 @@ def inicializar_db():
             FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
         )
     """)
+    
+    # Verificar y agregar columnas nuevas si no existen
+    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
+    if "vigencia" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
+    if "condiciones_comerciales" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT;")
+
     conn.commit()
     conn.close()
 
@@ -77,6 +85,14 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
             cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Base"],
             p["Subtotal"], p["Item Disc. %"]
         ))
+
+    
+    # Verificar y agregar columnas nuevas si no existen
+    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
+    if "vigencia" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
+    if "condiciones_comerciales" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT;")
 
     conn.commit()
     conn.close()
@@ -384,3 +400,4 @@ if 'cotizacion_id' in locals():
                 file_name=pdf_output_path,
                 mime="application/pdf"
             )
+
