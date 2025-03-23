@@ -283,9 +283,7 @@ else:
 conn.close()
 
 
-from fpdf import FPDF
 
-class CotizacionPDFConLogo(FPDF):
     def header(self):
     self.set_font("Helvetica", "B", 16)
     self.cell(0, 10, "SYNAPPSSYS - Cotización de Servicios", ln=True, align="L")
