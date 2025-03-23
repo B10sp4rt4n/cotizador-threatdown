@@ -2,20 +2,54 @@
 import streamlit as st
 import pandas as pd
 import sqlite3
+import os
 from datetime import date
 
 DB_PATH = "crm_cotizaciones.sqlite"
 
 # ========================
-# Funciones CRM
+# Crear base y tablas si no existen
 # ========================
+def inicializar_db():
+    if not os.path.exists(DB_PATH):
+        conn = sqlite3.connect(DB_PATH)
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cotizaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente TEXT,
+                contacto TEXT,
+                propuesta TEXT,
+                fecha TEXT,
+                responsable TEXT,
+                total_venta REAL,
+                total_costo REAL,
+                utilidad REAL,
+                margen REAL
+            )
+        """)
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS detalle_productos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cotizacion_id INTEGER,
+                producto TEXT,
+                cantidad INTEGER,
+                precio_unitario REAL,
+                precio_total REAL,
+                descuento_aplicado REAL,
+                tipo_origen TEXT,
+                FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
+            )
+        """)
+        conn.commit()
+        conn.close()
+
 def conectar_db():
     return sqlite3.connect(DB_PATH)
 
 def guardar_cotizacion(datos, productos_venta, productos_costo):
     conn = conectar_db()
     cursor = conn.cursor()
-
     cursor.execute("""
         INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen)
         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -24,7 +58,6 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
         datos["responsable"], datos["total_venta"], datos["total_costo"],
         datos["utilidad"], datos["margen"]
     ))
-
     cotizacion_id = cursor.lastrowid
 
     for p in productos_venta:
@@ -54,6 +87,9 @@ def ver_historial():
     df = pd.read_sql_query("SELECT * FROM cotizaciones ORDER BY fecha DESC", conn)
     conn.close()
     return df
+
+# Inicializar base si es primera vez
+inicializar_db()
 
 # ========================
 # Cargar datos
@@ -182,7 +218,6 @@ if precio_venta_total > 0 and costo_total > 0:
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
     col2.metric("Margen (%)", f"{margen:.2f}%")
 
-    # Guardar en CRM
     if st.button("💾 Guardar cotización"):
         datos = {
             "cliente": cliente,
@@ -195,10 +230,13 @@ if precio_venta_total > 0 and costo_total > 0:
             "utilidad": utilidad,
             "margen": margen
         }
-        guardar_cotizacion(datos, df_tabla_descuento.to_dict(orient="records"), df_cotizacion.to_dict(orient="records"))
+        guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
 
-# Mostrar historial
+# Historial
 st.subheader("📋 Historial de cotizaciones")
-df_hist = ver_historial()
-st.dataframe(df_hist)
+try:
+    df_hist = ver_historial()
+    st.dataframe(df_hist)
+except:
+    st.warning("No hay cotizaciones guardadas aún.")
