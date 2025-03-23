@@ -296,50 +296,43 @@ if precio_venta_total > 0 and costo_total > 0:
         st.markdown("### 📤 Exportación")
         st.markdown("Puedes exportar esta propuesta con formato profesional para tu cliente:")
     
-    if tabla_descuento and cliente and propuesta:
-        encabezado_cliente = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable
-        }
-    
+    if tabla_descuento and cliente and propuesta:    encabezado_cliente = {
+    "cliente": cliente,
+    "contacto": contacto,
+    "propuesta": propuesta,
+    "fecha": fecha.strftime('%Y-%m-%d'),
+    "responsable": responsable
+    }
         df_exportable = pd.DataFrame(tabla_descuento)
-        excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
-    
+    excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
         st.download_button(
-
         label="📥 Descargar propuesta actual (Excel)",
-        data=excel_file,
-        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    data=excel_file,
+    file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-    utilidad = precio_venta_total - costo_total
+        utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
     st.subheader("Utilidad de la operación")
     col1, col2 = st.columns(2)
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
     col2.metric("Margen (%)", f"{margen:.2f}%")
-
-    if st.button("💾 Guardar cotización"):
-        datos = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable,
-            "total_venta": precio_venta_total,
-            "total_costo": costo_total,
-            "utilidad": utilidad,
-            "margen": margen
-        ,
-            "estatus": estatus}
-        guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
-        st.success("✅ Cotización guardada en CRM")
-
-st.subheader("📋 Historial de cotizaciones")
+        if st.button("💾 Guardar cotización"):
+    datos = {
+    "cliente": cliente,
+    "contacto": contacto,
+    "propuesta": propuesta,
+    "fecha": fecha.strftime('%Y-%m-%d'),
+    "responsable": responsable,
+    "total_venta": precio_venta_total,
+    "total_costo": costo_total,
+    "utilidad": utilidad,
+    "margen": margen
+    ,
+    "estatus": estatus}
+    guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
+    st.success("✅ Cotización guardada en CRM")
+    st.subheader("📋 Historial de cotizaciones")
 try:
     df_hist = ver_historial()
 
@@ -496,42 +489,36 @@ import io
 
 
 # Mostrar botón de exportar si hay datos
-if tabla_descuento and cliente and propuesta:
-    encabezado_cliente = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable
+if tabla_descuento and cliente and propuesta:    encabezado_cliente = {
+    "cliente": cliente,
+    "contacto": contacto,
+    "propuesta": propuesta,
+    "fecha": fecha.strftime('%Y-%m-%d'),
+    "responsable": responsable
     }
-
-    df_exportable = pd.DataFrame(tabla_descuento)
+        df_exportable = pd.DataFrame(tabla_descuento)
     excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
     st.download_button(
-        label="📤 Exportar cotización para cliente (Excel)",
-        data=excel_file,
-        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    label="📤 Exportar cotización para cliente (Excel)",
+    data=excel_file,
+    file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
     encabezado_cliente = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable
+    "cliente": cliente,
+    "contacto": contacto,
+    "propuesta": propuesta,
+    "fecha": fecha.strftime('%Y-%m-%d'),
+    "responsable": responsable
     }
-
-    excel_file = exportar_cotizacion_cliente(pd.DataFrame(tabla_descuento), encabezado_cliente)
+        excel_file = exportar_cotizacion_cliente(pd.DataFrame(tabla_descuento), encabezado_cliente)
     st.download_button(
-        label="📤 Exportar cotización para cliente (Excel)",
-        data=excel_file,
-        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
-        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    label="📤 Exportar cotización para cliente (Excel)",
+    data=excel_file,
+    file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-
-
-import io
+            import io
 
 def exportar_cotizacion_cliente(df_venta, encabezado):
     df_export = df_venta[["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total con Descuento"]].copy()
@@ -623,22 +610,20 @@ from reportlab.platypus import Table, TableStyle
 
 
 # Mostrar botón solo si hay propuesta actual válida
-if tabla_descuento and cliente and propuesta:
-    df_pdf = pd.DataFrame(tabla_descuento)
+if tabla_descuento and cliente and propuesta:    df_pdf = pd.DataFrame(tabla_descuento)
     encabezado_pdf = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable
+    "cliente": cliente,
+    "contacto": contacto,
+    "propuesta": propuesta,
+    "fecha": fecha.strftime('%Y-%m-%d'),
+    "responsable": responsable
     }
     ruta_pdf = generar_pdf_cotizacion(df_pdf, encabezado_pdf, "logo_empresa.png")
     with open(ruta_pdf, "rb") as f:
-        st.download_button(
-            label="🖨️ Descargar propuesta actual (PDF)",
-            data=f,
-            file_name=f"cotizacion_{cliente}_{propuesta}.pdf",
-            mime="application/pdf"
-        )
-
-)
+    st.download_button(
+    label="🖨️ Descargar propuesta actual (PDF)",
+    data=f,
+    file_name=f"cotizacion_{cliente}_{propuesta}.pdf",
+    mime="application/pdf"
+    )
+    )
