@@ -4,6 +4,7 @@ import pandas as pd
 import sqlite3
 import os
 from datetime import date
+from clientes_module import vista_clientes
 
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
@@ -117,6 +118,13 @@ def cargar_datos():
 df_precios = cargar_datos()
 
 st.title("Cotizador ThreatDown con CRM")
+
+menu = st.sidebar.selectbox("Secciones", ["Cotizaciones", "Clientes"])
+
+if menu == "Clientes":
+    vista_clientes()
+    st.stop()
+
 
 st.sidebar.header("Datos de la cotización")
 cliente = st.sidebar.text_input("Cliente")
