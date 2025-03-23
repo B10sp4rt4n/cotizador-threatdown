@@ -64,7 +64,7 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     """, (
         datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
         datos["responsable"], datos["total_venta"], datos["total_costo"],
-        datos["utilidad"], datos["margen"]
+        datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"]
     ))
     cotizacion_id = cursor.lastrowid
 
