@@ -292,3 +292,60 @@ try:
 except:
     st.warning("No se pudo mostrar el comparador.")
 
+
+
+# Exportar cotización para cliente (Excel)
+import io
+
+def exportar_cotizacion_cliente(df_venta, encabezado):
+    df_export = df_venta[["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total con Descuento"]].copy()
+    df_export.columns = ["Producto", "Cantidad", "Precio Unitario", "Total"]
+
+    meta = pd.DataFrame({
+        "Campo": ["Cliente", "Contacto", "Propuesta", "Fecha", "Responsable"],
+        "Valor": [
+            encabezado.get("cliente", ""),
+            encabezado.get("contacto", ""),
+            encabezado.get("propuesta", ""),
+            encabezado.get("fecha", ""),
+            encabezado.get("responsable", "")
+        ]
+    })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        meta.to_excel(writer, index=False, sheet_name="Datos Cliente")
+        df_export.to_excel(writer, index=False, sheet_name="Cotización")
+
+        workbook  = writer.book
+        worksheet = writer.sheets["Cotización"]
+        total_row = len(df_export) + 2
+        worksheet.write(f"C{total_row}", "Total General:")
+        worksheet.write_formula(f"D{total_row}", f"=SUM(D2:D{len(df_export)+1})")
+
+    output.seek(0)
+    return output
+
+# Mostrar botón de exportar si hay datos
+if df_tabla_descuento and cliente and propuesta:
+    encabezado_cliente = {
+        "cliente": cliente,
+        "contacto": contacto,
+        "propuesta": propuesta,
+        "fecha": fecha.strftime('%Y-%m-%d'),
+        "responsable": responsable
+    }
+
+    excel_file = exportar_cotizacion_cliente(pd.DataFrame(tabla_descuento), encabezado_cliente)
+    st.download_button(
+        label="📤 Exportar cotización para cliente (Excel)",
+        data=excel_file,
+        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
+
+            st.dataframe(comparativo[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen"]])
+except:
+    st.warning("No se pudo mostrar el comparador.")
+
