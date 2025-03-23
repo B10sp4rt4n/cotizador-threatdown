@@ -297,34 +297,7 @@ except:
 # Exportar cotización para cliente (Excel)
 import io
 
-def exportar_cotizacion_cliente(df_venta, encabezado):
-    df_export = df_venta[["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total con Descuento"]].copy()
-    df_export.columns = ["Producto", "Cantidad", "Precio Unitario", "Total"]
 
-    meta = pd.DataFrame({
-        "Campo": ["Cliente", "Contacto", "Propuesta", "Fecha", "Responsable"],
-        "Valor": [
-            encabezado.get("cliente", ""),
-            encabezado.get("contacto", ""),
-            encabezado.get("propuesta", ""),
-            encabezado.get("fecha", ""),
-            encabezado.get("responsable", "")
-        ]
-    })
-
-    output = io.BytesIO()
-    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
-        meta.to_excel(writer, index=False, sheet_name="Datos Cliente")
-        df_export.to_excel(writer, index=False, sheet_name="Cotización")
-
-        workbook  = writer.book
-        worksheet = writer.sheets["Cotización"]
-        total_row = len(df_export) + 2
-        worksheet.write(f"C{total_row}", "Total General:")
-        worksheet.write_formula(f"D{total_row}", f"=SUM(D2:D{len(df_export)+1})")
-
-    output.seek(0)
-    return output
 
 # Mostrar botón de exportar si hay datos
 if tabla_descuento and cliente and propuesta:
@@ -359,3 +332,53 @@ if tabla_descuento and cliente and propuesta:
         file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
+
+
+
+import io
+
+def exportar_cotizacion_cliente(df_venta, encabezado):
+    df_export = df_venta[["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total con Descuento"]].copy()
+    df_export.columns = ["Producto", "Cantidad", "Precio Unitario", "Total"]
+
+    meta = pd.DataFrame({
+        "Campo": ["Cliente", "Contacto", "Propuesta", "Fecha", "Responsable"],
+        "Valor": [
+            encabezado.get("cliente", ""),
+            encabezado.get("contacto", ""),
+            encabezado.get("propuesta", ""),
+            encabezado.get("fecha", ""),
+            encabezado.get("responsable", "")
+        ]
+    })
+
+    output = io.BytesIO()
+    with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
+        meta.to_excel(writer, index=False, sheet_name="Cotización")
+        df_export.to_excel(writer, index=False, startrow=8, sheet_name="Cotización")
+
+        workbook  = writer.book
+        worksheet = writer.sheets["Cotización"]
+
+        worksheet.insert_image("A1", "logo_empresa.png", { "x_scale": 0.3, "y_scale": 0.3 })
+
+        bold = workbook.add_format({"bold": True})
+        money = workbook.add_format({"num_format": "$#,##0.00"})
+        header_format = workbook.add_format({"bold": True, "bg_color": "#F2F2F2", "border": 1})
+        normal_border = workbook.add_format({"border": 1})
+        money_border = workbook.add_format({"num_format": "$#,##0.00", "border": 1})
+
+        for col_num, _ in enumerate(df_export.columns):
+            worksheet.write(7, col_num, df_export.columns[col_num], header_format)
+            col_letter = chr(65 + col_num)
+            if col_letter in ["C", "D"]:
+                worksheet.set_column(f"{col_letter}:{col_letter}", 15, money_border)
+            else:
+                worksheet.set_column(f"{col_letter}:{col_letter}", 20, normal_border)
+
+        total_row = 8 + len(df_export) + 1
+        worksheet.write(f"C{total_row}", "Total General:", bold)
+        worksheet.write_formula(f"D{total_row}", f"=SUM(D9:D{8+len(df_export)})", money)
+
+    output.seek(0)
+    return output
