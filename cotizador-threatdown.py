@@ -354,13 +354,10 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(0, 10, f"Total de la propuesta: ${total_venta:,.2f}", ln=True, align="R")
         self.ln(10)
 
-    def condiciones(self):
+    def condiciones(self, vigencia, condiciones):
         self.set_font("Helvetica", "", 9)
-        self.multi_cell(0, 6,
-            "Vigencia de la propuesta: 30 días naturales.\n"
-            "Precios en USD, no incluyen IVA.\n"
-            "Condiciones de pago: 50% anticipo, 50% contra entrega.\n"
-        )
+        self.multi_cell(0, 6, f"Vigencia de la propuesta: {vigencia}\n")
+        self.multi_cell(0, 6, f"{condiciones}")
         self.ln(10)
 
     def firma(self):
@@ -388,7 +385,7 @@ if 'cotizacion_id' in locals():
         pdf.encabezado_cliente(datos_dict)
         pdf.tabla_productos(productos)
         pdf.totales(total_venta)
-        pdf.condiciones()
+        pdf.condiciones(datos["vigencia"], datos["condiciones_comerciales"])
         pdf.firma()
 
         pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
