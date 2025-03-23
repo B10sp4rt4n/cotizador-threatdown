@@ -237,7 +237,14 @@ fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
 estatus = st.sidebar.selectbox("Estatus de la cotización", ["Borrador", "Enviada", "Ganada", "Perdida"])
 
-# Cargar datos de productos
+# Cargar datos de productos desde el archivo Excel en Cloud
+@st.cache_data
+def cargar_datos():
+    df = pd.read_excel("/mnt/data/precios_threatdown.xlsx")
+    df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
+    df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
+    return df.dropna(subset=["Tier Min", "Tier Max"])
+
 df_precios = cargar_datos()
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
@@ -341,7 +348,6 @@ if precio_venta_total > 0 and costo_total > 0:
             "responsable": responsable
         }
         df_exportable = pd.DataFrame(tabla_descuento)
-        # Asumimos que la función exportar_cotizacion_cliente ya está definida
         excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
         st.download_button(
             label="📥 Descargar propuesta actual (Excel)",
@@ -349,7 +355,6 @@ if precio_venta_total > 0 and costo_total > 0:
             file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
             mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
         )
-    # Botón para exportar a PDF para la propuesta actual
     if tabla_descuento and cliente and propuesta:
         encabezado_cliente = {
             "cliente": cliente,
@@ -368,86 +373,85 @@ if precio_venta_total > 0 and costo_total > 0:
             )
 
 # Historial de cotizaciones y filtros
-if 'df_hist' in locals():
-    st.subheader("📋 Historial de cotizaciones")
-    filtro_cliente = st.text_input("🔎 Filtrar por cliente:")
-    filtro_propuesta = st.text_input("🔎 Filtrar por propuesta:")
-    df_hist = ver_historial()
-    if filtro_cliente:
-        df_hist = df_hist[df_hist["cliente"].str.contains(filtro_cliente, case=False, na=False)]
-    if filtro_propuesta:
-        df_hist = df_hist[df_hist["propuesta"].str.contains(filtro_propuesta, case=False, na=False)]
-    try:
-        df_hist["fecha"] = pd.to_datetime(df_hist["fecha"])
-        col_f1, col_f2 = st.columns(2)
-        with col_f1:
-            fecha_inicio = st.date_input("📅 Fecha desde:", value=df_hist["fecha"].min().date())
-        with col_f2:
-            fecha_fin = st.date_input("📅 Fecha hasta:", value=df_hist["fecha"].max().date())
-        df_hist = df_hist[(df_hist["fecha"] >= pd.to_datetime(fecha_inicio)) & (df_hist["fecha"] <= pd.to_datetime(fecha_fin))]
-    except Exception as e:
-        st.info("No se pudieron aplicar filtros de fecha.")
-    estatus_opciones = ["Todos"] + sorted(df_hist["estatus"].dropna().unique().tolist())
-    filtro_estatus = st.selectbox("📌 Filtrar por estatus:", estatus_opciones)
-    if filtro_estatus != "Todos":
-        df_hist = df_hist[df_hist["estatus"] == filtro_estatus]
-    st.dataframe(df_hist[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen", "estatus"]])
+st.subheader("📋 Historial de cotizaciones")
+filtro_cliente = st.text_input("🔎 Filtrar por cliente:")
+filtro_propuesta = st.text_input("🔎 Filtrar por propuesta:")
+df_hist = ver_historial()
+if filtro_cliente:
+    df_hist = df_hist[df_hist["cliente"].str.contains(filtro_cliente, case=False, na=False)]
+if filtro_propuesta:
+    df_hist = df_hist[df_hist["propuesta"].str.contains(filtro_propuesta, case=False, na=False)]
+try:
+    df_hist["fecha"] = pd.to_datetime(df_hist["fecha"])
+    col_f1, col_f2 = st.columns(2)
+    with col_f1:
+        fecha_inicio = st.date_input("📅 Fecha desde:", value=df_hist["fecha"].min().date())
+    with col_f2:
+        fecha_fin = st.date_input("📅 Fecha hasta:", value=df_hist["fecha"].max().date())
+    df_hist = df_hist[(df_hist["fecha"] >= pd.to_datetime(fecha_inicio)) & (df_hist["fecha"] <= pd.to_datetime(fecha_fin))]
+except Exception as e:
+    st.info("No se pudieron aplicar filtros de fecha.")
+estatus_opciones = ["Todos"] + sorted(df_hist["estatus"].dropna().unique().tolist())
+filtro_estatus = st.selectbox("📌 Filtrar por estatus:", estatus_opciones)
+if filtro_estatus != "Todos":
+    df_hist = df_hist[df_hist["estatus"] == filtro_estatus]
+st.dataframe(df_hist[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen", "estatus"]])
     
-    st.subheader("🔍 Ver detalle de cotización guardada")
-    try:
-        opciones = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
-        seleccion_detalle = st.selectbox("Selecciona una cotización para ver el detalle:", opciones)
-        if seleccion_detalle:
-            id_seleccionado = int(seleccion_detalle.split(" - ")[0])
-            conn = conectar_db()
-            detalle = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {id_seleccionado}", conn)
-            productos_detalle = pd.read_sql_query(f"SELECT * FROM detalle_productos WHERE cotizacion_id = {id_seleccionado}", conn)
-            conn.close()
-            cotiz = detalle.iloc[0]
-            st.markdown(f"**Cliente:** {cotiz['cliente']}")
-            st.markdown(f"**Contacto:** {cotiz['contacto']}")
-            st.markdown(f"**Propuesta:** {cotiz['propuesta']}")
-            st.markdown(f"**Fecha:** {cotiz['fecha']}")
-            st.markdown(f"**Responsable:** {cotiz['responsable']}")
-            st.markdown(f"**Total Venta:** ${cotiz['total_venta']:,.2f}")
-            st.markdown(f"**Total Costo:** ${cotiz['total_costo']:,.2f}")
-            st.markdown(f"**Utilidad:** ${cotiz['utilidad']:,.2f}")
-            st.markdown(f"**Margen:** {cotiz['margen']:.2f}%")
-            st.markdown("**Productos (Venta):**")
-            st.dataframe(productos_detalle[productos_detalle["tipo_origen"] == "venta"].drop(columns=["cotizacion_id", "tipo_origen"]))
-            st.markdown("**Productos (Costo):**")
-            st.dataframe(productos_detalle[productos_detalle["tipo_origen"] == "costo"].drop(columns=["cotizacion_id", "tipo_origen"]))
-            st.markdown("### 📤 Exportación de propuesta guardada")
-            st.markdown("Descarga en formato profesional para compartir con tu cliente:")
-            encabezado_seleccionado = {
-                "cliente": cotiz["cliente"],
-                "contacto": cotiz["contacto"],
-                "propuesta": cotiz["propuesta"],
-                "fecha": cotiz["fecha"],
-                "responsable": cotiz["responsable"]
-            }
-            df_export_guardado = productos_detalle[productos_detalle["tipo_origen"] == "venta"].copy()
-            if "precio_unitario" in df_export_guardado.columns:
-                df_export_guardado.rename(columns={
-                    "precio_unitario": "Precio Unitario de Lista",
-                    "precio_total": "Precio Total con Descuento"
-                }, inplace=True)
-            ruta_pdf_hist = generar_pdf_cotizacion(pd.DataFrame(df_export_guardado), encabezado_seleccionado, "logo_empresa.png")
-            with open(ruta_pdf_hist, "rb") as f:
-                st.download_button(
-                    label="🖨️ Descargar propuesta seleccionada (PDF)",
-                    data=f,
-                    file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.pdf",
-                    mime="application/pdf"
-                )
+st.subheader("🔍 Ver detalle de cotización guardada")
+try:
+    opciones = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
+    seleccion_detalle = st.selectbox("Selecciona una cotización para ver el detalle:", opciones)
+    if seleccion_detalle:
+        id_seleccionado = int(seleccion_detalle.split(" - ")[0])
+        conn = conectar_db()
+        detalle = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {id_seleccionado}", conn)
+        productos_detalle = pd.read_sql_query(f"SELECT * FROM detalle_productos WHERE cotizacion_id = {id_seleccionado}", conn)
+        conn.close()
+        cotiz = detalle.iloc[0]
+        st.markdown(f"**Cliente:** {cotiz['cliente']}")
+        st.markdown(f"**Contacto:** {cotiz['contacto']}")
+        st.markdown(f"**Propuesta:** {cotiz['propuesta']}")
+        st.markdown(f"**Fecha:** {cotiz['fecha']}")
+        st.markdown(f"**Responsable:** {cotiz['responsable']}")
+        st.markdown(f"**Total Venta:** ${cotiz['total_venta']:,.2f}")
+        st.markdown(f"**Total Costo:** ${cotiz['total_costo']:,.2f}")
+        st.markdown(f"**Utilidad:** ${cotiz['utilidad']:,.2f}")
+        st.markdown(f"**Margen:** {cotiz['margen']:.2f}%")
+        st.markdown("**Productos (Venta):**")
+        st.dataframe(productos_detalle[productos_detalle["tipo_origen"] == "venta"].drop(columns=["cotizacion_id", "tipo_origen"]))
+        st.markdown("**Productos (Costo):**")
+        st.dataframe(productos_detalle[productos_detalle["tipo_origen"] == "costo"].drop(columns=["cotizacion_id", "tipo_origen"]))
+        st.markdown("### 📤 Exportación de propuesta guardada")
+        st.markdown("Descarga en formato profesional para compartir con tu cliente:")
+        encabezado_seleccionado = {
+            "cliente": cotiz["cliente"],
+            "contacto": cotiz["contacto"],
+            "propuesta": cotiz["propuesta"],
+            "fecha": cotiz["fecha"],
+            "responsable": cotiz["responsable"]
+        }
+        df_export_guardado = productos_detalle[productos_detalle["tipo_origen"] == "venta"].copy()
+        if "precio_unitario" in df_export_guardado.columns:
+            df_export_guardado.rename(columns={
+                "precio_unitario": "Precio Unitario de Lista",
+                "precio_total": "Precio Total con Descuento"
+            }, inplace=True)
+        ruta_pdf_hist = generar_pdf_cotizacion(pd.DataFrame(df_export_guardado), encabezado_seleccionado, "logo_empresa.png")
+        with open(ruta_pdf_hist, "rb") as f:
             st.download_button(
-                label="📥 Descargar propuesta seleccionada (Excel)",
-                data=exportar_cotizacion_cliente(pd.DataFrame(df_export_guardado), encabezado_seleccionado),
-                file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.xlsx",
-                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                label="🖨️ Descargar propuesta seleccionada (PDF)",
+                data=f,
+                file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.pdf",
+                mime="application/pdf"
             )
-    except Exception as e:
-        st.warning("No se pudo cargar el detalle de cotizaciones.")
+        st.download_button(
+            label="📥 Descargar propuesta seleccionada (Excel)",
+            data=exportar_cotizacion_cliente(pd.DataFrame(df_export_guardado), encabezado_seleccionado),
+            file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+        )
+except Exception as e:
+    st.warning("No se pudo cargar el detalle de cotizaciones.")
 
 # ========================
 # DASHBOARD DE MÉTRICAS
