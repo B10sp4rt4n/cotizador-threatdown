@@ -211,7 +211,7 @@ if menu == "Clientes":
 st.sidebar.header("Datos de la cotización")
 
 # =======================
-# Cargar clientes registrados
+# Cargar empresas registradas
 # =======================
 conn = conectar_db()
 df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
@@ -220,6 +220,11 @@ conn.close()
 if df_clientes.empty:
     st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
     st.stop()
+
+empresa_seleccionada = st.sidebar.selectbox("Selecciona la empresa cliente", df_clientes["empresa"].unique())
+cliente_row = df_clientes[df_clientes["empresa"] == empresa_seleccionada].iloc[0]
+cliente = empresa_seleccionada
+contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
 
 df_clientes["display"] = df_clientes["nombre"] + " " + df_clientes["apellido_paterno"] + " " + df_clientes["apellido_materno"] + " - " + df_clientes["empresa"]
 cliente_seleccionado = st.sidebar.selectbox("Selecciona un cliente", df_clientes["display"])
