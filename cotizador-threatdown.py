@@ -213,6 +213,8 @@ if productos_para_tabla_secundaria:
 else:
     st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
+cotizacion_guardada = False
+
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
@@ -236,6 +238,7 @@ if precio_venta_total > 0 and costo_total > 0:
         }
         guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
+        cotizacion_guardada = True
 
 st.subheader("📋 Historial de cotizaciones")
 try:
@@ -354,7 +357,28 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(0, 8, f"{self.cargo}", ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
 
+
 # Botón para generar PDF desde vista de detalle
+if 'cotizacion_id' in locals() or not cotizacion_guardada:
+    if not cotizacion_guardada and precio_venta_total > 0 and costo_total > 0:
+        datos = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable,
+            "cargo": cargo_responsable,
+            "total_venta": precio_venta_total,
+            "total_costo": costo_total,
+            "utilidad": utilidad,
+            "margen": margen
+        }
+        cotizacion_id = guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
+        st.success("✅ Cotización guardada automáticamente para generar PDF")
+        cotizacion_guardada = True
+
+    if 'cotizacion_id' in locals():
+
 if 'cotizacion_id' in locals():
     if st.button("📄 Generar PDF para cliente"):
         pdf = CotizacionPDFConLogo()
