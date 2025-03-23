@@ -251,8 +251,67 @@ except:
 
 
 
+
 # =============================
 # Botón para generar PDF desde cotización nueva o desde vista
+# =============================
+if st.button("📄 Generar PDF para cliente"):
+    cotizacion_id_final = None
+    datos_finales = None
+    productos_pdf = []
+
+    # Si ya hay un cotizacion_id (desde detalle), usarlo
+    if 'cotizacion_id' in locals():
+        cotizacion_id_final = cotizacion_id
+        datos_finales = datos
+        productos_pdf = df_venta.to_dict("records")
+
+    # Si no hay, intentar guardar una nueva cotización
+    elif precio_venta_total > 0 and costo_total > 0:
+        datos_finales = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable,
+            "cargo": cargo_responsable,
+            "total_venta": precio_venta_total,
+            "total_costo": costo_total,
+            "utilidad": utilidad,
+            "margen": margen
+        }
+        cotizacion_id_final = guardar_cotizacion(
+            datos_finales,
+            df_tabla_descuento.to_dict("records"),
+            df_cotizacion.to_dict("records")
+        )
+        productos_pdf = df_tabla_descuento.to_dict("records")
+        st.success("✅ Cotización guardada automáticamente para generar PDF")
+
+    if cotizacion_id_final and datos_finales:
+        pdf = CotizacionPDFConLogo()
+        pdf.responsable = datos_finales["responsable"]
+        pdf.cargo = datos_finales["cargo"]
+        pdf.add_page()
+
+        pdf.encabezado_cliente(datos_finales)
+        pdf.tabla_productos(productos_pdf)
+        pdf.totales(datos_finales["total_venta"])
+        pdf.condiciones()
+        pdf.firma()
+
+        pdf_output_path = f"cotizacion_cliente_{cotizacion_id_final}.pdf"
+        pdf.output(pdf_output_path)
+        with open(pdf_output_path, "rb") as file:
+            st.download_button(
+                label="📥 Descargar PDF de cotización",
+                data=file,
+                file_name=pdf_output_path,
+                mime="application/pdf"
+            )
+    else:
+        st.warning("No hay cotización válida para generar PDF.")
+
 # =============================
 if st.button("📄 Generar PDF para cliente"):
     if not 'cotizacion_id' in locals():
