@@ -51,8 +51,8 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, estatus)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
         datos["responsable"], datos["total_venta"], datos["total_costo"],
@@ -108,6 +108,8 @@ contacto = st.sidebar.text_input("Nombre de contacto")
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
+
+estatus = st.sidebar.selectbox("Estatus de la cotización", ["Borrador", "Enviada", "Ganada", "Perdida"])
 
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
@@ -202,6 +204,29 @@ else:
     st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
 if precio_venta_total > 0 and costo_total > 0:
+
+st.markdown("### 📤 Exportación")
+st.markdown("Puedes exportar esta propuesta con formato profesional para tu cliente:")
+
+if tabla_descuento and cliente and propuesta:
+    encabezado_cliente = {
+        "cliente": cliente,
+        "contacto": contacto,
+        "propuesta": propuesta,
+        "fecha": fecha.strftime('%Y-%m-%d'),
+        "responsable": responsable
+    }
+
+    df_exportable = pd.DataFrame(tabla_descuento)
+    excel_file = exportar_cotizacion_cliente(df_exportable, encabezado_cliente)
+
+    st.download_button(
+        label="📥 Descargar propuesta actual (Excel)",
+        data=excel_file,
+        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    )
+
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
     st.subheader("Utilidad de la operación")
@@ -220,13 +245,40 @@ if precio_venta_total > 0 and costo_total > 0:
             "total_costo": costo_total,
             "utilidad": utilidad,
             "margen": margen
-        }
+        ,
+            "estatus": estatus}
         guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
 
 st.subheader("📋 Historial de cotizaciones")
 try:
     df_hist = ver_historial()
+
+# === Filtros de búsqueda en historial ===
+filtro_cliente = st.text_input("🔎 Filtrar por cliente:")
+filtro_propuesta = st.text_input("🔎 Filtrar por propuesta:")
+
+if filtro_cliente:
+    df_hist = df_hist[df_hist["cliente"].str.contains(filtro_cliente, case=False, na=False)]
+
+if filtro_propuesta:
+    df_hist = df_hist[df_hist["propuesta"].str.contains(filtro_propuesta, case=False, na=False)]
+
+# === Nuevos filtros ===
+col_f1, col_f2 = st.columns(2)
+with col_f1:
+    fecha_inicio = st.date_input("📅 Fecha desde:", value=pd.to_datetime(df_hist["fecha"]).min().date())
+with col_f2:
+    fecha_fin = st.date_input("📅 Fecha hasta:", value=pd.to_datetime(df_hist["fecha"]).max().date())
+
+df_hist["fecha"] = pd.to_datetime(df_hist["fecha"])
+df_hist = df_hist[(df_hist["fecha"] >= pd.to_datetime(fecha_inicio)) & (df_hist["fecha"] <= pd.to_datetime(fecha_fin))]
+
+# Filtro por estatus
+estatus_opciones = ["Todos"] + sorted(df_hist["estatus"].dropna().unique().tolist())
+filtro_estatus = st.selectbox("📌 Filtrar por estatus:", estatus_opciones)
+if filtro_estatus != "Todos":
+    df_hist = df_hist[df_hist["estatus"] == filtro_estatus]
     st.dataframe(df_hist)
 except:
     st.warning("No hay cotizaciones guardadas aún.")
@@ -266,6 +318,35 @@ try:
 
             st.markdown("**Productos (Costo):**")
             st.dataframe(productos[productos["tipo_origen"] == "costo"].drop(columns=["cotizacion_id", "tipo_origen"]))
+            # Botón para exportar cotización guardada
+            encabezado_seleccionado = {
+                "cliente": cotiz["cliente"],
+                "contacto": cotiz["contacto"],
+                "propuesta": cotiz["propuesta"],
+                "fecha": cotiz["fecha"],
+                "responsable": cotiz["responsable"]
+            }
+
+            df_export_guardado = productos[productos["tipo_origen"] == "venta"].copy()
+            df_export_guardado.rename(columns={{
+                "precio_unitario": "Precio Unitario de Lista",
+                "precio_total": "Precio Total con Descuento"
+            }}, inplace=True)
+
+            archivo_exportado = exportar_cotizacion_cliente(df_export_guardado, encabezado_seleccionado)
+
+            
+st.markdown("### 📤 Exportación de propuesta seleccionada")
+st.markdown("Descarga en formato profesional para compartir con tu cliente:")
+
+st.download_button(
+    label="📥 Descargar propuesta seleccionada (Excel)",
+
+                data=archivo_exportado,
+                file_name=f"cotizacion_{cotiz['cliente']}_{cotiz['propuesta']}.xlsx",
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+            )
+
 except:
     st.warning("No se pudo cargar el detalle de cotizaciones.")
 
@@ -382,3 +463,34 @@ def exportar_cotizacion_cliente(df_venta, encabezado):
 
     output.seek(0)
     return output
+
+
+
+# ========================
+# DASHBOARD DE MÉTRICAS
+# ========================
+st.markdown("---")
+st.header("📊 Dashboard de Cotizaciones")
+
+try:
+    df_dash = ver_historial()
+    df_dash["fecha"] = pd.to_datetime(df_dash["fecha"])
+
+    col1, col2, col3, col4 = st.columns(4)
+    col1.metric("Cotizaciones totales", len(df_dash))
+    col2.metric("Total cotizado", f"${df_dash['total_venta'].sum():,.2f}")
+    col3.metric("Utilidad total", f"${df_dash['utilidad'].sum():,.2f}")
+    margen_prom = df_dash["margen"].mean()
+    col4.metric("Margen promedio", f"{margen_prom:.2f}%")
+
+    st.subheader("🎯 Clientes más frecuentes")
+    clientes_top = df_dash["cliente"].value_counts().reset_index()
+    clientes_top.columns = ["Cliente", "Propuestas"]
+    st.dataframe(clientes_top)
+
+    st.subheader("📌 Cotizaciones por estatus")
+    estatus_count = df_dash["estatus"].value_counts().reset_index()
+    estatus_count.columns = ["Estatus", "Cantidad"]
+    st.dataframe(estatus_count)
+except Exception as e:
+    st.warning("No se pudo generar el dashboard.")
