@@ -53,11 +53,11 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, cargo, total_venta, total_costo, utilidad, margen)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
-        datos["responsable"], datos["total_venta"], datos["total_costo"],
+        datos["responsable"], datos["cargo"], datos["total_venta"], datos["total_costo"],
         datos["utilidad"], datos["margen"]
     ))
     cotizacion_id = cursor.lastrowid
