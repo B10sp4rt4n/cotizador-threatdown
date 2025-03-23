@@ -231,3 +231,53 @@ try:
 except:
     st.warning("No hay cotizaciones guardadas aún.")
 
+
+
+# =============================
+# Ver detalle de cotización seleccionada
+# =============================
+st.subheader("🔍 Ver detalle de cotización")
+
+conn = conectar_db()
+df_cotizaciones = pd.read_sql_query("SELECT id, propuesta, cliente, fecha FROM cotizaciones ORDER BY fecha DESC", conn)
+
+if df_cotizaciones.empty:
+    st.info("No hay cotizaciones guardadas para mostrar el detalle.")
+else:
+    df_cotizaciones["Resumen"] = df_cotizaciones["fecha"] + " - " + df_cotizaciones["cliente"] + " - " + df_cotizaciones["propuesta"]
+    seleccion_resumen = st.selectbox("Selecciona una cotización para ver el detalle:", df_cotizaciones["Resumen"])
+    
+    if seleccion_resumen:
+        cotizacion_id = int(df_cotizaciones[df_cotizaciones["Resumen"] == seleccion_resumen]["id"].values[0])
+        
+        # Datos generales
+        datos = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {cotizacion_id}", conn).iloc[0]
+        st.markdown(f"**Cliente:** {datos['cliente']}")
+        st.markdown(f"**Contacto:** {datos['contacto']}")
+        st.markdown(f"**Propuesta:** {datos['propuesta']}")
+        st.markdown(f"**Fecha:** {datos['fecha']}")
+        st.markdown(f"**Responsable:** {datos['responsable']}")
+        st.markdown(f"**Total Venta:** ${datos['total_venta']:,.2f}")
+        st.markdown(f"**Total Costo:** ${datos['total_costo']:,.2f}")
+        st.markdown(f"**Utilidad:** ${datos['utilidad']:,.2f}")
+        st.markdown(f"**Margen:** {datos['margen']:.2f}%")
+
+        # Productos de venta
+        st.markdown("### Productos cotizados (venta)")
+        df_venta = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'venta'
+        ''', conn)
+        st.dataframe(df_venta)
+
+        # Productos de costo
+        st.markdown("### Productos base (costos)")
+        df_costo = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'costo'
+        ''', conn)
+        st.dataframe(df_costo)
+
+conn.close()
