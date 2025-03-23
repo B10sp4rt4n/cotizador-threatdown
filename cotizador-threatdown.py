@@ -1,9 +1,63 @@
 
 import streamlit as st
 import pandas as pd
+import sqlite3
 from datetime import date
 
-# Cargar precios desde el archivo Excel
+DB_PATH = "crm_cotizaciones.sqlite"
+
+# ========================
+# Funciones CRM
+# ========================
+def conectar_db():
+    return sqlite3.connect(DB_PATH)
+
+def guardar_cotizacion(datos, productos_venta, productos_costo):
+    conn = conectar_db()
+    cursor = conn.cursor()
+
+    cursor.execute("""
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
+        datos["responsable"], datos["total_venta"], datos["total_costo"],
+        datos["utilidad"], datos["margen"]
+    ))
+
+    cotizacion_id = cursor.lastrowid
+
+    for p in productos_venta:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'venta')
+        """, (
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Unitario de Lista"],
+            p["Precio Total con Descuento"], p["Descuento %"]
+        ))
+
+    for p in productos_costo:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'costo')
+        """, (
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Base"],
+            p["Subtotal"], p["Item Disc. %"]
+        ))
+
+    conn.commit()
+    conn.close()
+    return cotizacion_id
+
+def ver_historial():
+    conn = conectar_db()
+    df = pd.read_sql_query("SELECT * FROM cotizaciones ORDER BY fecha DESC", conn)
+    conn.close()
+    return df
+
+# ========================
+# Cargar datos
+# ========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_excel("precios_threatdown.xlsx")
@@ -13,27 +67,24 @@ def cargar_datos():
 
 df_precios = cargar_datos()
 
-st.title("Cotizador ThreatDown con Descuentos")
+st.title("Cotizador ThreatDown con CRM")
 
-# === DATOS DE ENCABEZADO ===
+# Sidebar: Datos de la cotización
 st.sidebar.header("Datos de la cotización")
 cliente = st.sidebar.text_input("Cliente")
+contacto = st.sidebar.text_input("Nombre de contacto")
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
 
-# Filtro 1: Selección del término (12, 24, 36 meses)
+# Filtro de término
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
 
-# Filtrar el DataFrame por el término seleccionado
 df_filtrado_termino = df_precios[df_precios["Term (Month)"] == termino_seleccionado]
-
-# Mostrar productos disponibles con ese término
 productos = df_filtrado_termino["Product Title"].unique()
 seleccion = st.multiselect("Selecciona los productos que deseas cotizar:", productos)
 
-# Mostrar precios y permitir elegir cantidades y descuentos
 cotizacion = []
 productos_para_tabla_secundaria = []
 
@@ -42,14 +93,13 @@ for prod in seleccion:
     cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1, step=1)
 
     df_rango = df_producto[(df_producto["Tier Min"] <= cantidad) & (df_producto["Tier Max"] >= cantidad)]
-
     if not df_rango.empty:
         fila = df_rango.iloc[0]
         precio_base = fila["MSRP USD"]
 
-        item_disc = st.number_input(f"Descuento 'Item' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
-        channel_disc = st.number_input(f"Descuento 'Channel Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
-        deal_reg_disc = st.number_input(f"Descuento 'Deal Reg. Disc.' (%) para '{prod}':", min_value=0.0, max_value=100.0, value=0.0)
+        item_disc = st.number_input(f"Descuento 'Item' (%) para '{prod}':", 0.0, 100.0, 0.0)
+        channel_disc = st.number_input(f"Descuento 'Channel Disc.' (%) para '{prod}':", 0.0, 100.0, 0.0)
+        deal_reg_disc = st.number_input(f"Descuento 'Deal Reg. Disc.' (%) para '{prod}':", 0.0, 100.0, 0.0)
 
         precio1 = precio_base * (1 - item_disc / 100)
         total_channel = channel_disc + deal_reg_disc
@@ -74,29 +124,29 @@ for prod in seleccion:
     else:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
-# === Mostrar datos de encabezado ===
+# Mostrar encabezado
 if cliente or propuesta or responsable:
     st.subheader("Datos de la cotización")
     st.markdown(f"**Cliente:** {cliente}")
+    st.markdown(f"**Contacto:** {contacto}")
     st.markdown(f"**Propuesta:** {propuesta}")
     st.markdown(f"**Fecha:** {fecha.strftime('%Y-%m-%d')}")
     st.markdown(f"**Responsable:** {responsable}")
 
-# === Cotización con descuentos en cascada ===
+# Mostrar cotización (costos)
 costo_total = 0
 if cotizacion:
     df_cotizacion = pd.DataFrame(cotizacion)
-    st.subheader("Resumen de Cotización (costo con descuentos en cascada)")
+    st.subheader("Resumen de Cotización (costos)")
     st.dataframe(df_cotizacion)
     costo_total = df_cotizacion["Subtotal"].sum()
     st.success(f"Costo total con descuentos aplicados: ${costo_total:,.2f}")
 
-# === Análisis independiente: descuento directo ===
-st.subheader("Análisis independiente: Precio de venta con descuento directo sobre precio de lista")
-
+# Análisis independiente (precio de venta)
 precio_venta_total = 0
+tabla_descuento = []
 if productos_para_tabla_secundaria:
-    tabla_descuento = []
+    st.subheader("Análisis: Precio de venta con descuento directo sobre lista")
     for item in productos_para_tabla_secundaria:
         prod = item["Producto"]
         cantidad = item["Cantidad"]
@@ -104,8 +154,7 @@ if productos_para_tabla_secundaria:
         precio_total_lista = precio_unitario * cantidad
 
         descuento_directo = st.number_input(f"Descuento directo (%) sobre lista para '{prod}':",
-                                            min_value=0.0, max_value=100.0, value=0.0,
-                                            key=f"direct_discount_{prod}")
+                                            0.0, 100.0, 0.0, key=f"direct_discount_{prod}")
         precio_con_descuento = precio_total_lista * (1 - descuento_directo / 100)
 
         tabla_descuento.append({
@@ -120,11 +169,11 @@ if productos_para_tabla_secundaria:
     df_tabla_descuento = pd.DataFrame(tabla_descuento)
     st.dataframe(df_tabla_descuento)
     precio_venta_total = df_tabla_descuento["Precio Total con Descuento"].sum()
-    st.success(f"Precio de venta total (descuento directo aplicado): ${precio_venta_total:,.2f}")
+    st.success(f"Precio total de venta: ${precio_venta_total:,.2f}")
 else:
-    st.info("Aún no hay productos con precios de lista válidos para aplicar descuento directo.")
+    st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
-# === Cálculo de utilidad y margen ===
+# Cálculo de utilidad y margen
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
@@ -132,3 +181,24 @@ if precio_venta_total > 0 and costo_total > 0:
     col1, col2 = st.columns(2)
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
     col2.metric("Margen (%)", f"{margen:.2f}%")
+
+    # Guardar en CRM
+    if st.button("💾 Guardar cotización"):
+        datos = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable,
+            "total_venta": precio_venta_total,
+            "total_costo": costo_total,
+            "utilidad": utilidad,
+            "margen": margen
+        }
+        guardar_cotizacion(datos, df_tabla_descuento.to_dict(orient="records"), df_cotizacion.to_dict(orient="records"))
+        st.success("✅ Cotización guardada en CRM")
+
+# Mostrar historial
+st.subheader("📋 Historial de cotizaciones")
+df_hist = ver_historial()
+st.dataframe(df_hist)
