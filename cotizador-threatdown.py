@@ -5,44 +5,44 @@ import sqlite3
 import os
 from datetime import date
 
-DB_PATH = "crm_cotizaciones.sqlite"
+# Crear ruta segura para base de datos en entorno escribible
+DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
 # ========================
 # Crear base y tablas si no existen
 # ========================
 def inicializar_db():
-    if not os.path.exists(DB_PATH):
-        conn = sqlite3.connect(DB_PATH)
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cotizaciones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cliente TEXT,
-                contacto TEXT,
-                propuesta TEXT,
-                fecha TEXT,
-                responsable TEXT,
-                total_venta REAL,
-                total_costo REAL,
-                utilidad REAL,
-                margen REAL
-            )
-        """)
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS detalle_productos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cotizacion_id INTEGER,
-                producto TEXT,
-                cantidad INTEGER,
-                precio_unitario REAL,
-                precio_total REAL,
-                descuento_aplicado REAL,
-                tipo_origen TEXT,
-                FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
-            )
-        """)
-        conn.commit()
-        conn.close()
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cotizaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente TEXT,
+            contacto TEXT,
+            propuesta TEXT,
+            fecha TEXT,
+            responsable TEXT,
+            total_venta REAL,
+            total_costo REAL,
+            utilidad REAL,
+            margen REAL
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS detalle_productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cotizacion_id INTEGER,
+            producto TEXT,
+            cantidad INTEGER,
+            precio_unitario REAL,
+            precio_total REAL,
+            descuento_aplicado REAL,
+            tipo_origen TEXT,
+            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
 
 def conectar_db():
     return sqlite3.connect(DB_PATH)
@@ -91,9 +91,6 @@ def ver_historial():
 # Inicializar base si es primera vez
 inicializar_db()
 
-# ========================
-# Cargar datos
-# ========================
 @st.cache_data
 def cargar_datos():
     df = pd.read_excel("precios_threatdown.xlsx")
@@ -105,7 +102,6 @@ df_precios = cargar_datos()
 
 st.title("Cotizador ThreatDown con CRM")
 
-# Sidebar: Datos de la cotización
 st.sidebar.header("Datos de la cotización")
 cliente = st.sidebar.text_input("Cliente")
 contacto = st.sidebar.text_input("Nombre de contacto")
@@ -113,7 +109,6 @@ propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
 
-# Filtro de término
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
 
@@ -160,7 +155,6 @@ for prod in seleccion:
     else:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
-# Mostrar encabezado
 if cliente or propuesta or responsable:
     st.subheader("Datos de la cotización")
     st.markdown(f"**Cliente:** {cliente}")
@@ -169,7 +163,6 @@ if cliente or propuesta or responsable:
     st.markdown(f"**Fecha:** {fecha.strftime('%Y-%m-%d')}")
     st.markdown(f"**Responsable:** {responsable}")
 
-# Mostrar cotización (costos)
 costo_total = 0
 if cotizacion:
     df_cotizacion = pd.DataFrame(cotizacion)
@@ -178,7 +171,6 @@ if cotizacion:
     costo_total = df_cotizacion["Subtotal"].sum()
     st.success(f"Costo total con descuentos aplicados: ${costo_total:,.2f}")
 
-# Análisis independiente (precio de venta)
 precio_venta_total = 0
 tabla_descuento = []
 if productos_para_tabla_secundaria:
@@ -209,7 +201,6 @@ if productos_para_tabla_secundaria:
 else:
     st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
-# Cálculo de utilidad y margen
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
@@ -233,7 +224,6 @@ if precio_venta_total > 0 and costo_total > 0:
         guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
 
-# Historial
 st.subheader("📋 Historial de cotizaciones")
 try:
     df_hist = ver_historial()
