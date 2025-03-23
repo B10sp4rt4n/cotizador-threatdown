@@ -327,7 +327,7 @@ def exportar_cotizacion_cliente(df_venta, encabezado):
     return output
 
 # Mostrar botón de exportar si hay datos
-if df_tabla_descuento and cliente and propuesta:
+if 'df_tabla_descuento' in locals() and not df_tabla_descuento.empty and cliente and propuesta:
     encabezado_cliente = {
         "cliente": cliente,
         "contacto": contacto,
@@ -343,4 +343,3 @@ if df_tabla_descuento and cliente and propuesta:
         file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
