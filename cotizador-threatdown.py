@@ -230,3 +230,4 @@ try:
     st.dataframe(df_hist)
 except:
     st.warning("No hay cotizaciones guardadas aún.")
+
