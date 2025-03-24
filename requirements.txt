@@ -1,5 +1,5 @@
-pandas
+streamlit==1.32.0
+pandas==2.1.4
 openpyxl
-requests
-streamlit
-fpdf
+reportlab
+sqlite3-binary
