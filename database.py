@@ -2,7 +2,6 @@
 import sqlite3
 import os
 
-# Ruta simple para asegurar escritura en cualquier entorno
 DB_PATH = "crm_cotizaciones.sqlite"
 
 def conectar_db():
@@ -58,10 +57,14 @@ def inicializar_db():
             utilidad REAL,
             margen REAL,
             vigencia TEXT,
-            condiciones_comerciales TEXT,
-            usuario_id INTEGER
+            condiciones_comerciales TEXT
         )
     """)
+
+    # Asegurar que la columna usuario_id exista
+    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
+    if "usuario_id" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN usuario_id INTEGER")
 
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detalle_productos (
