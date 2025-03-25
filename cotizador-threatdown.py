@@ -98,6 +98,13 @@ def inicializar_db():
 inicializar_db()
 
 # =================== Verificar sesión o mostrar login ===================
+def actualizar_contrasena(correo, nueva_contrasena):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET contraseña = ? WHERE correo = ?", (hash_password(nueva_contrasena), correo))
+    conn.commit()
+    conn.close()
+    print(f"[LOG] Contraseña actualizada para {correo}")
 if "usuario" not in st.session_state:
     # Mostrar login si no hay usuarios creados
     conn = conectar_db()
@@ -123,6 +130,27 @@ if "usuario" not in st.session_state:
         st.stop()
     else:
         st.title("🔐 Iniciar sesión")
+        recuperar = st.checkbox("¿Olvidaste tu contraseña?")
+        if recuperar:
+            with st.form("recuperar_password"):
+                correo_reset = st.text_input("Correo registrado")
+                nueva = st.text_input("Nueva contraseña", type="password")
+                confirmar = st.text_input("Confirmar contraseña", type="password")
+                submitted_reset = st.form_submit_button("Restablecer")
+                if submitted_reset:
+                    if nueva != confirmar:
+                        st.error("❌ Las contraseñas no coinciden.")
+                    else:
+                        conn = conectar_db()
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (correo_reset,))
+                        existe = cursor.fetchone()
+                        conn.close()
+                        if existe:
+                            actualizar_contrasena(correo_reset, nueva)
+                            st.success("✅ Contraseña actualizada. Ahora puedes iniciar sesión.")
+                        else:
+                            st.error("❌ Correo no encontrado.")
         with st.form("login_form"):
             correo = st.text_input("Correo")
             contrasena = st.text_input("Contraseña", type="password")
@@ -156,6 +184,28 @@ if "usuario" in st.session_state:
     col1, col2 = st.columns(2)
     col1.metric("Hoy", len(cotizaciones_hoy))
     col2.metric("Este mes", len(cotizaciones_mes))
+
+# =================== Función ver_historial (movida hacia arriba) ===================
+def ver_historial(usuario):
+    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
+    conn = conectar_db()
+    if usuario['tipo'] == 'superadmin':
+        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    elif usuario['tipo'] == 'admin':
+        query = f"""
+            SELECT * FROM cotizaciones
+            WHERE usuario_id IN (
+                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
+            ) ORDER BY fecha DESC
+        """
+        df = pd.read_sql_query(query, conn)
+    else:
+        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    conn.close()
+    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
+    return df
 
 # =================== Funciones de cotizaciones ===================
 def guardar_cotizacion(datos, productos_venta, productos_costo):
@@ -197,28 +247,9 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     print("[LOG] Cotización guardada exitosamente")
     return cotizacion_id
 
-def ver_historial(usuario):
-    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
-    conn = conectar_db()
-    if usuario['tipo'] == 'superadmin':
-        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    elif usuario['tipo'] == 'admin':
-        query = f"""
-            SELECT * FROM cotizaciones
-            WHERE usuario_id IN (
-                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
-            ) ORDER BY fecha DESC
-        """
-        df = pd.read_sql_query(query, conn)
-    else:
-        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    conn.close()
-    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
-    return df
 
 # ... (resto del código sigue igual)
+
 
 # ... (resto del código sigue igual 1)
 
