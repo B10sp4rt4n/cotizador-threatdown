@@ -214,7 +214,7 @@ if st.session_state.usuario["tipo"] == "superadmin":
 
         submitted_user = st.form_submit_button("Registrar usuario")
         if submitted_user:
-    try:
+        try:
         conn = conectar_db()
         cursor = conn.cursor()
         cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (nuevo_correo,))
@@ -289,6 +289,7 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
 
 
 # ... (resto del código sigue igual)
+
 
 
 
