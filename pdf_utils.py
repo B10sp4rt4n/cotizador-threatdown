@@ -1,5 +1,7 @@
 # pdf_utils.py
 from fpdf import FPDF
+from documentos import anexar_documentacion
+import os
 
 class CotizacionPDFConLogo(FPDF):
     def __init__(self, logo_path="logo_empresa.png"):
@@ -62,3 +64,13 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(0, 8, responsable, ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
 
+    def generar_pdf_con_anexos(self, datos, productos, total_venta):
+        archivo_base = f"cotizacion_cliente_{datos['id']}.pdf"
+        self.add_page()
+        self.encabezado_cliente(datos)
+        self.tabla_productos(productos)
+        self.totales(total_venta)
+        self.condiciones(datos["vigencia"], datos["condiciones_comerciales"])
+        self.firma(datos["responsable"])
+        self.output(archivo_base)
+        return anexar_documentacion(archivo_base, productos)
