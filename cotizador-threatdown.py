@@ -225,7 +225,7 @@ if st.session_state.usuario["tipo"] == "superadmin":
                 else:
                     crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
                     st.success("✅ Usuario creado exitosamente")
-            st.success("✅ Usuario creado exitosamente")
+                                st.success("✅ Usuario creado exitosamente")
             except Exception as e:
                 st.error(f"❌ Error al registrar usuario: {e}")
 # =================== Mensaje de bienvenida ===================
@@ -290,8 +290,6 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
 
 
 # ... (resto del código sigue igual)
-
-
 
 # ... (resto del código sigue igual)
 
