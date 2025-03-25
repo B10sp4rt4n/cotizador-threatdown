@@ -28,6 +28,16 @@ def autenticar_usuario(correo, contrasena):
     conn.close()
     return usuario
 
+def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO usuarios (nombre, correo, contraseña, tipo_usuario, admin_id)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nombre, correo, hash_password(contrasena), tipo_usuario, admin_id))
+    conn.commit()
+    conn.close()
+
 # =================== Inicio de sesión ===================
 st.sidebar.title("Inicio de sesión")
 if "usuario" not in st.session_state:
@@ -52,6 +62,36 @@ else:
         del st.session_state.usuario
         st.experimental_rerun()
 
+    # Solo superadmin puede registrar nuevos usuarios
+    if st.session_state.usuario['tipo'] == 'superadmin':
+        st.sidebar.markdown("---")
+        st.sidebar.markdown("### Crear nuevo usuario")
+        with st.sidebar.form("form_nuevo_usuario"):
+            nuevo_nombre = st.text_input("Nombre completo")
+            nuevo_correo = st.text_input("Correo")
+            nuevo_password = st.text_input("Contraseña", type="password")
+            nuevo_tipo = st.selectbox("Tipo de usuario", ["admin", "vendedor"])
+            nuevo_admin_id = None
+            if nuevo_tipo == "vendedor":
+                # Obtener admins disponibles
+                conn = conectar_db()
+                admins = pd.read_sql_query("SELECT id, nombre FROM usuarios WHERE tipo_usuario = 'admin'", conn)
+                conn.close()
+                if not admins.empty:
+                    admin_nombres = admins["nombre"].tolist()
+                    admin_seleccionado = st.selectbox("Asignar a administrador", admin_nombres)
+                    nuevo_admin_id = int(admins[admins["nombre"] == admin_seleccionado]["id"].values[0])
+                else:
+                    st.warning("No hay administradores registrados para asignar.")
+
+            submitted = st.form_submit_button("Registrar usuario")
+            if submitted:
+                try:
+                    crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
+                    st.success("✅ Usuario registrado correctamente")
+                except Exception as e:
+                    st.error(f"Error al registrar usuario: {e}")
+
 def requiere_login():
     if "usuario" not in st.session_state:
         st.warning("Por favor inicia sesión para continuar.")
@@ -63,6 +103,17 @@ requiere_login()
 def inicializar_db():
     conn = conectar_db()
     cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            correo TEXT UNIQUE,
+            contraseña TEXT,
+            tipo_usuario TEXT,
+            admin_id INTEGER,
+            FOREIGN KEY (admin_id) REFERENCES usuarios(id)
+        )
+    """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
