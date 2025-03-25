@@ -190,43 +190,6 @@ def ver_historial(usuario):
     print(f"[LOG] Cotizaciones encontradas: {len(df)}")
     return df
 
-# =================== Gestión de usuarios (solo superadmin) ===================
-if st.session_state.usuario["tipo"] == "superadmin":
-    st.markdown("---")
-    st.subheader("👥 Crear nuevo usuario")
-    with st.form("form_crear_usuario"):
-        nuevo_nombre = st.text_input("Nombre del nuevo usuario")
-        nuevo_correo = st.text_input("Correo electrónico")
-        nuevo_password = st.text_input("Contraseña", type="password")
-        nuevo_tipo = st.selectbox("Tipo de usuario", ["admin", "vendedor"], key="tipo_usuario_selector_fix")
-        nuevo_admin_id = None
-
-        if nuevo_tipo == "vendedor":
-            conn = conectar_db()
-            admins = pd.read_sql_query("SELECT id, nombre FROM usuarios WHERE tipo_usuario = 'admin'", conn)
-            conn.close()
-            if not admins.empty:
-                admin_opciones = admins["nombre"].tolist()
-                admin_seleccionado = st.selectbox("Asignar a administrador", admin_opciones, key=f"admin_selector_{nuevo_correo}")
-                nuevo_admin_id = int(admins[admins["nombre"] == admin_seleccionado]["id"].values[0])
-            else:
-                st.warning("⚠️ No hay administradores registrados. Primero crea un administrador.")
-
-        submitted_user = st.form_submit_button("Registrar usuario")
-        if submitted_user:
-        try:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (nuevo_correo,))
-        existe = cursor.fetchone()
-        conn.close()
-        if existe:
-            st.warning("⚠️ Ya existe un usuario con ese correo. Intenta con otro.")
-        else:
-            crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
-            st.success("✅ Usuario creado exitosamente")
-    except Exception as e:
-        st.error(f"❌ Error al registrar usuario: {e}")
 # =================== Mensaje de bienvenida ===================
 if "usuario" in st.session_state:
     st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
