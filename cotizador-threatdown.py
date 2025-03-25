@@ -136,7 +136,7 @@ if "usuario" not in st.session_state:
                         "tipo": usuario[2],
                         "admin_id": usuario[3]
                     }
-                    st.experimental_rerun()
+                    st.rerun()
                 else:
                     st.error("❌ Credenciales incorrectas.")
         st.stop()
@@ -217,6 +217,8 @@ def ver_historial(usuario):
     conn.close()
     print(f"[LOG] Cotizaciones encontradas: {len(df)}")
     return df
+
+# ... (resto del código sigue igual)
 
 # ... (resto del código sigue igual 1)
 
