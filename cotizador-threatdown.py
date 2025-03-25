@@ -97,6 +97,66 @@ def inicializar_db():
 # Ejecutar inicialización antes de cualquier uso de tablas
 inicializar_db()
 
+# =================== Verificar sesión o mostrar login ===================
+if "usuario" not in st.session_state:
+    # Mostrar login si no hay usuarios creados
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    usuario_count = cursor.fetchone()[0]
+    conn.close()
+
+    if usuario_count == 0:
+        st.title("🆕 Registro inicial de Superadministrador")
+        with st.form("registro_inicial"):
+            nombre = st.text_input("Nombre completo")
+            correo = st.text_input("Correo")
+            contrasena = st.text_input("Contraseña", type="password")
+            confirmar = st.text_input("Confirmar contraseña", type="password")
+            submitted = st.form_submit_button("Crear Superadmin")
+            if submitted:
+                if contrasena == confirmar:
+                    crear_usuario(nombre, correo, contrasena, "superadmin", None)
+                    st.success("✅ Usuario creado. Reinicia la app e inicia sesión.")
+                else:
+                    st.error("❌ Las contraseñas no coinciden.")
+        st.stop()
+    else:
+        st.title("🔐 Iniciar sesión")
+        with st.form("login_form"):
+            correo = st.text_input("Correo")
+            contrasena = st.text_input("Contraseña", type="password")
+            submitted = st.form_submit_button("Ingresar")
+            if submitted:
+                usuario = autenticar_usuario(correo, contrasena)
+                if usuario:
+                    st.session_state.usuario = {
+                        "id": usuario[0],
+                        "nombre": usuario[1],
+                        "tipo": usuario[2],
+                        "admin_id": usuario[3]
+                    }
+                    st.experimental_rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas.")
+        st.stop()
+
+# =================== Mensaje de bienvenida ===================
+if "usuario" in st.session_state:
+    st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
+    st.markdown(f"📅 Fecha actual: **{date.today().strftime('%Y-%m-%d')}**")
+
+    # Panel resumen
+    st.markdown("---")
+    st.subheader("📊 Mi resumen de cotizaciones")
+    resumen_df = ver_historial(st.session_state.usuario)
+    cotizaciones_hoy = resumen_df[resumen_df['fecha'] == date.today().strftime('%Y-%m-%d')]
+    cotizaciones_mes = resumen_df[resumen_df['fecha'].str.startswith(date.today().strftime('%Y-%m'))]
+
+    col1, col2 = st.columns(2)
+    col1.metric("Hoy", len(cotizaciones_hoy))
+    col2.metric("Este mes", len(cotizaciones_mes))
+
 # =================== Funciones de cotizaciones ===================
 def guardar_cotizacion(datos, productos_venta, productos_costo):
     print(f"[LOG] Guardando cotización para: {datos['cliente']} | Responsable: {datos['responsable']}")
@@ -157,6 +217,8 @@ def ver_historial(usuario):
     conn.close()
     print(f"[LOG] Cotizaciones encontradas: {len(df)}")
     return df
+
+# ... (resto del código sigue igual 1)
 
 # ... (resto del código sigue igual)
 
