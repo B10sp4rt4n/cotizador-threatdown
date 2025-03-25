@@ -27,16 +27,22 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(60, 8, "Producto", 1)
         self.cell(20, 8, "Cantidad", 1, align="C")
         self.cell(30, 8, "P. Unitario", 1, align="R")
-        self.cell(30, 8, "Descuento %", 1, align="R")
-        self.cell(40, 8, "Total", 1, ln=True, align="R")
+        self.cell(30, 8, "Total Lista", 1, align="R")
+        self.cell(25, 8, "Descuento %", 1, align="R")
+        self.cell(30, 8, "Total", 1, ln=True, align="R")
 
         self.set_font("Helvetica", "", 10)
         for p in productos:
+            cantidad = p["cantidad"]
+            precio_unitario = p["precio_unitario"]
+            total_lista = cantidad * precio_unitario
+
             self.cell(60, 8, str(p["producto"]), 1)
-            self.cell(20, 8, str(p["cantidad"]), 1, align="C")
-            self.cell(30, 8, f"${p['precio_unitario']:,.2f}", 1, align="R")
-            self.cell(30, 8, f"{p['descuento_aplicado']}%", 1, align="R")
-            self.cell(40, 8, f"${p['precio_total']:,.2f}", 1, ln=True, align="R")
+            self.cell(20, 8, str(cantidad), 1, align="C")
+            self.cell(30, 8, f"${precio_unitario:,.2f}", 1, align="R")
+            self.cell(30, 8, f"${total_lista:,.2f}", 1, align="R")
+            self.cell(25, 8, f"{p['descuento_aplicado']}%", 1, align="R")
+            self.cell(30, 8, f"${p['precio_total']:,.2f}", 1, ln=True, align="R")
         self.ln(5)
 
     def totales(self, total_venta):
@@ -55,3 +61,4 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(0, 8, "Atentamente:", ln=True)
         self.cell(0, 8, responsable, ln=True)
         self.cell(0, 8, "SYNAPPSSYS", ln=True)
+
