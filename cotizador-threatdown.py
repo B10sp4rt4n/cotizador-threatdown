@@ -10,6 +10,39 @@ from pdf_utils import CotizacionPDFConLogo
 
 inicializar_db()
 
+# desde aqui el agregado
+
+from auth import hash_password  # asegúrate de que esté importado
+
+# Verificar si hay usuarios
+import sqlite3
+from database import conectar_db
+
+conn = conectar_db()
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM usuarios")
+usuario_count = cursor.fetchone()[0]
+conn.close()
+
+if usuario_count == 0:
+    st.title("🆕 Registro inicial de Superadministrador")
+    with st.form("registro_inicial"):
+        nombre = st.text_input("Nombre completo")
+        correo = st.text_input("Correo")
+        contrasena = st.text_input("Contraseña", type="password")
+        confirmar = st.text_input("Confirmar contraseña", type="password")
+        submitted = st.form_submit_button("Crear Superadmin")
+        if submitted:
+            if contrasena != confirmar:
+                st.error("❌ Las contraseñas no coinciden.")
+            else:
+                crear_usuario(nombre, correo, contrasena, "superadmin", None)
+                st.success("✅ Usuario creado. Reinicia la app e inicia sesión.")
+    st.stop()
+
+# hasta aqui los cambios
+
+
 if "usuario" not in st.session_state:
     st.title("🔐 Iniciar sesión")
     recuperar = st.checkbox("¿Olvidaste tu contraseña?")
