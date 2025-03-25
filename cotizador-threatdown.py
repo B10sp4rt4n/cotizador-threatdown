@@ -1,6 +1,162 @@
+# Cotizador ThreatDown V17 con autenticación y roles de usuario
+
 import streamlit as st
 import sqlite3
 import pandas as pd
+import hashlib
+import os
+from datetime import date
+from fpdf import FPDF
+
+DB_PATH = "crm_cotizaciones.sqlite"
+
+# =================== Funciones de autenticación ===================
+def conectar_db():
+    return sqlite3.connect(DB_PATH)
+
+def hash_password(password):
+    return hashlib.sha256(password.encode()).hexdigest()
+
+def autenticar_usuario(correo, contrasena):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, nombre, tipo_usuario, admin_id FROM usuarios
+        WHERE correo = ? AND contraseña = ?
+    """, (correo, hash_password(contrasena)))
+    usuario = cursor.fetchone()
+    conn.close()
+    return usuario
+
+# =================== Inicio de sesión ===================
+st.sidebar.title("Inicio de sesión")
+if "usuario" not in st.session_state:
+    correo_input = st.sidebar.text_input("Correo electrónico")
+    pass_input = st.sidebar.text_input("Contraseña", type="password")
+    if st.sidebar.button("Iniciar sesión"):
+        usuario = autenticar_usuario(correo_input, pass_input)
+        if usuario:
+            st.session_state.usuario = {
+                "id": usuario[0],
+                "nombre": usuario[1],
+                "tipo": usuario[2],
+                "admin_id": usuario[3]
+            }
+            st.success(f"Bienvenido, {usuario[1]}")
+            st.experimental_rerun()
+        else:
+            st.sidebar.error("Credenciales incorrectas")
+else:
+    st.sidebar.success(f"Usuario: {st.session_state.usuario['nombre']} ({st.session_state.usuario['tipo']})")
+    if st.sidebar.button("Cerrar sesión"):
+        del st.session_state.usuario
+        st.experimental_rerun()
+
+def requiere_login():
+    if "usuario" not in st.session_state:
+        st.warning("Por favor inicia sesión para continuar.")
+        st.stop()
+
+requiere_login()
+
+# =================== Inicializar base de datos ===================
+def inicializar_db():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cotizaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente TEXT,
+            contacto TEXT,
+            propuesta TEXT,
+            fecha TEXT,
+            responsable TEXT,
+            total_venta REAL,
+            total_costo REAL,
+            utilidad REAL,
+            margen REAL,
+            vigencia TEXT,
+            condiciones_comerciales TEXT,
+            usuario_id INTEGER
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS detalle_productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cotizacion_id INTEGER,
+            producto TEXT,
+            cantidad INTEGER,
+            precio_unitario REAL,
+            precio_total REAL,
+            descuento_aplicado REAL,
+            tipo_origen TEXT,
+            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+inicializar_db()
+
+# =================== Funciones de cotizaciones ===================
+def guardar_cotizacion(datos, productos_venta, productos_costo):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, vigencia, condiciones_comerciales, usuario_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
+        datos["responsable"], datos["total_venta"], datos["total_costo"],
+        datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"], datos["usuario_id"]
+    ))
+    cotizacion_id = cursor.lastrowid
+
+    for p in productos_venta:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'venta')
+        """, (
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Unitario de Lista"],
+            p["Precio Total con Descuento"], p["Descuento %"]
+        ))
+
+    for p in productos_costo:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'costo')
+        """, (
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Base"],
+            p["Subtotal"], p["Item Disc. %"]
+        ))
+
+    conn.commit()
+    conn.close()
+    return cotizacion_id
+
+# =================== Filtro de historial por tipo de usuario ===================
+def ver_historial(usuario):
+    conn = conectar_db()
+    if usuario['tipo'] == 'superadmin':
+        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    elif usuario['tipo'] == 'admin':
+        query = f"""
+            SELECT * FROM cotizaciones
+            WHERE usuario_id IN (
+                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
+            ) ORDER BY fecha DESC
+        """
+        df = pd.read_sql_query(query, conn)
+    else:
+        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    conn.close()
+    return df
+
+# Desde aquí continúa el resto del código del cotizador original,
+# utilizando st.session_state['usuario']['id'] para guardar cotizaciones,
+# y la función ver_historial() para filtrar según tipo.
 
 DB_PATH = "crm_cotizaciones.sqlite"
 
