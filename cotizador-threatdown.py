@@ -15,9 +15,12 @@ def conectar_db():
     return sqlite3.connect(DB_PATH)
 
 def hash_password(password):
-    return hashlib.sha256(password.encode()).hexdigest()
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    print(f"[LOG] Contraseña hasheada: {hashed}")
+    return hashed
 
 def autenticar_usuario(correo, contrasena):
+    print(f"[LOG] Intentando autenticar usuario: {correo}")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -26,9 +29,11 @@ def autenticar_usuario(correo, contrasena):
     """, (correo, hash_password(contrasena)))
     usuario = cursor.fetchone()
     conn.close()
+    print(f"[LOG] Resultado de autenticación: {usuario}")
     return usuario
 
 def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
+    print(f"[LOG] Creando usuario: {nombre}, tipo: {tipo_usuario}, admin_id: {admin_id}")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -37,95 +42,11 @@ def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
     """, (nombre, correo, hash_password(contrasena), tipo_usuario, admin_id))
     conn.commit()
     conn.close()
-
-# =================== Inicio de sesión ===================
-st.sidebar.title("Inicio de sesión")
-
-# Mostrar registro inicial si no hay usuarios
-conn = conectar_db()
-cursor = conn.cursor()
-cursor.execute("SELECT COUNT(*) FROM usuarios")
-usuario_count = cursor.fetchone()[0]
-conn.close()
-
-if usuario_count == 0:
-    st.sidebar.warning("🔐 No hay usuarios registrados. Crea el primer superadministrador.")
-    with st.sidebar.form("form_registro_inicial"):
-        nombre_admin = st.text_input("Nombre completo")
-        correo_admin = st.text_input("Correo electrónico")
-        pass_admin = st.text_input("Contraseña", type="password")
-        submitted = st.form_submit_button("Crear superadministrador")
-        if submitted:
-            try:
-                crear_usuario(nombre_admin, correo_admin, pass_admin, "superadmin", None)
-                st.success("✅ Superadministrador creado. Ahora puedes iniciar sesión.")
-                st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Error al crear superadmin: {e}")
-    st.stop()
-
-if "usuario" not in st.session_state:
-    correo_input = st.sidebar.text_input("Correo electrónico")
-    pass_input = st.sidebar.text_input("Contraseña", type="password")
-    if st.sidebar.button("Iniciar sesión"):
-        usuario = autenticar_usuario(correo_input, pass_input)
-        if usuario:
-            st.session_state.usuario = {
-                "id": usuario[0],
-                "nombre": usuario[1],
-                "tipo": usuario[2],
-                "admin_id": usuario[3]
-            }
-            st.success(f"Bienvenido, {usuario[1]}")
-            st.experimental_rerun()
-        else:
-            st.sidebar.error("Credenciales incorrectas")
-else:
-    st.sidebar.success(f"Usuario: {st.session_state.usuario['nombre']} ({st.session_state.usuario['tipo']})")
-    if st.sidebar.button("Cerrar sesión"):
-        del st.session_state.usuario
-        st.experimental_rerun()
-
-    # Solo superadmin puede registrar nuevos usuarios
-    if st.session_state.usuario['tipo'] == 'superadmin':
-        st.sidebar.markdown("---")
-        st.sidebar.markdown("### Crear nuevo usuario")
-        with st.sidebar.form("form_nuevo_usuario"):
-            nuevo_nombre = st.text_input("Nombre completo")
-            nuevo_correo = st.text_input("Correo")
-            nuevo_password = st.text_input("Contraseña", type="password")
-            nuevo_tipo = st.selectbox("Tipo de usuario", ["admin", "vendedor"])
-            nuevo_admin_id = None
-            if nuevo_tipo == "vendedor":
-                # Obtener admins disponibles
-                conn = conectar_db()
-                admins = pd.read_sql_query("SELECT id, nombre FROM usuarios WHERE tipo_usuario = 'admin'", conn)
-                conn.close()
-                if not admins.empty:
-                    admin_nombres = admins["nombre"].tolist()
-                    admin_seleccionado = st.selectbox("Asignar a administrador", admin_nombres)
-                    nuevo_admin_id = int(admins[admins["nombre"] == admin_seleccionado]["id"].values[0])
-                else:
-                    st.warning("No hay administradores registrados para asignar.")
-
-            submitted = st.form_submit_button("Registrar usuario")
-            if submitted:
-                try:
-                    crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
-                    st.success("✅ Usuario registrado correctamente")
-                except Exception as e:
-                    st.error(f"Error al registrar usuario: {e}")
-
-
-def requiere_login():
-    if "usuario" not in st.session_state:
-        st.warning("Por favor inicia sesión para continuar.")
-        st.stop()
-
-requiere_login()
+    print("[LOG] Usuario creado exitosamente")
 
 # =================== Inicializar base de datos ===================
 def inicializar_db():
+    print("[LOG] Inicializando base de datos si no existe")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -171,11 +92,14 @@ def inicializar_db():
     """)
     conn.commit()
     conn.close()
+    print("[LOG] Base de datos lista")
 
+# Ejecutar inicialización antes de cualquier uso de tablas
 inicializar_db()
 
 # =================== Funciones de cotizaciones ===================
 def guardar_cotizacion(datos, productos_venta, productos_costo):
+    print(f"[LOG] Guardando cotización para: {datos['cliente']} | Responsable: {datos['responsable']}")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
@@ -187,6 +111,8 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
         datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"], datos["usuario_id"]
     ))
     cotizacion_id = cursor.lastrowid
+
+    print(f"[LOG] Cotización ID generada: {cotizacion_id}")
 
     for p in productos_venta:
         cursor.execute("""
@@ -208,10 +134,11 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
 
     conn.commit()
     conn.close()
+    print("[LOG] Cotización guardada exitosamente")
     return cotizacion_id
 
-# =================== Filtro de historial por tipo de usuario ===================
 def ver_historial(usuario):
+    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
     conn = conectar_db()
     if usuario['tipo'] == 'superadmin':
         query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
@@ -228,11 +155,10 @@ def ver_historial(usuario):
         query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
         df = pd.read_sql_query(query, conn)
     conn.close()
+    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
     return df
 
-# Desde aquí continúa el resto del código del cotizador original,
-# utilizando st.session_state['usuario']['id'] para guardar cotizaciones,
-# y la función ver_historial() para filtrar según tipo.
+# ... (resto del código sigue igual)
 
 
 DB_PATH = "crm_cotizaciones.sqlite"
