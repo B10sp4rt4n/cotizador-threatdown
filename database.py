@@ -1,4 +1,3 @@
-# database.py
 import sqlite3
 import os
 
@@ -11,6 +10,7 @@ def inicializar_db():
     conn = conectar_db()
     cursor = conn.cursor()
 
+    # Tabla de usuarios
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS usuarios (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -23,6 +23,7 @@ def inicializar_db():
         )
     """)
 
+    # Tabla de clientes
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS clientes (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -44,6 +45,7 @@ def inicializar_db():
         )
     """)
 
+    # Tabla de cotizaciones
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -57,15 +59,12 @@ def inicializar_db():
             utilidad REAL,
             margen REAL,
             vigencia TEXT,
-            condiciones_comerciales TEXT
+            condiciones_comerciales TEXT,
+            usuario_id INTEGER
         )
     """)
 
-    # Asegurar que la columna usuario_id exista
-    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
-    if "usuario_id" not in columnas:
-        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN usuario_id INTEGER")
-
+    # Tabla de productos relacionados a cotización
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detalle_productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -82,3 +81,4 @@ def inicializar_db():
 
     conn.commit()
     conn.close()
+
