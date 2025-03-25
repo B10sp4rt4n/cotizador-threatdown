@@ -214,19 +214,19 @@ if st.session_state.usuario["tipo"] == "superadmin":
 
         submitted_user = st.form_submit_button("Registrar usuario")
         if submitted_user:
-    try:
-        conn = conectar_db()
-        cursor = conn.cursor()
-        cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (nuevo_correo,))
-        existe = cursor.fetchone()
-        conn.close()
-        if existe:
-            st.warning("⚠️ Ya existe un usuario con ese correo. Intenta con otro.")
-        else:
-            crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
+            try:
+                conn = conectar_db()
+                cursor = conn.cursor()
+                cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (nuevo_correo,))
+                existe = cursor.fetchone()
+                conn.close()
+                if existe:
+                    st.warning("⚠️ Ya existe un usuario con ese correo. Intenta con otro.")
+                else:
+                    crear_usuario(nuevo_nombre, nuevo_correo, nuevo_password, nuevo_tipo, nuevo_admin_id)
             st.success("✅ Usuario creado exitosamente")
-            
-
+            except Exception as e:
+                st.error(f"❌ Error al registrar usuario: {e}")
 # =================== Mensaje de bienvenida ===================
 if "usuario" in st.session_state:
     st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
@@ -286,6 +286,9 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     print("[LOG] Cotización guardada exitosamente")
     return cotizacion_id
 
+
+
+# ... (resto del código sigue igual)
 
 
 # ... (resto del código sigue igual)
