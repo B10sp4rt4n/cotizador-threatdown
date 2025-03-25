@@ -2,7 +2,8 @@
 import sqlite3
 import os
 
-DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
+# Ruta simple para asegurar escritura en cualquier entorno
+DB_PATH = "crm_cotizaciones.sqlite"
 
 def conectar_db():
     return sqlite3.connect(DB_PATH)
