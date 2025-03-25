@@ -40,6 +40,30 @@ def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
 
 # =================== Inicio de sesión ===================
 st.sidebar.title("Inicio de sesión")
+
+# Mostrar registro inicial si no hay usuarios
+conn = conectar_db()
+cursor = conn.cursor()
+cursor.execute("SELECT COUNT(*) FROM usuarios")
+usuario_count = cursor.fetchone()[0]
+conn.close()
+
+if usuario_count == 0:
+    st.sidebar.warning("🔐 No hay usuarios registrados. Crea el primer superadministrador.")
+    with st.sidebar.form("form_registro_inicial"):
+        nombre_admin = st.text_input("Nombre completo")
+        correo_admin = st.text_input("Correo electrónico")
+        pass_admin = st.text_input("Contraseña", type="password")
+        submitted = st.form_submit_button("Crear superadministrador")
+        if submitted:
+            try:
+                crear_usuario(nombre_admin, correo_admin, pass_admin, "superadmin", None)
+                st.success("✅ Superadministrador creado. Ahora puedes iniciar sesión.")
+                st.experimental_rerun()
+            except Exception as e:
+                st.error(f"Error al crear superadmin: {e}")
+    st.stop()
+
 if "usuario" not in st.session_state:
     correo_input = st.sidebar.text_input("Correo electrónico")
     pass_input = st.sidebar.text_input("Contraseña", type="password")
@@ -91,6 +115,7 @@ else:
                     st.success("✅ Usuario registrado correctamente")
                 except Exception as e:
                     st.error(f"Error al registrar usuario: {e}")
+
 
 def requiere_login():
     if "usuario" not in st.session_state:
@@ -208,6 +233,7 @@ def ver_historial(usuario):
 # Desde aquí continúa el resto del código del cotizador original,
 # utilizando st.session_state['usuario']['id'] para guardar cotizaciones,
 # y la función ver_historial() para filtrar según tipo.
+
 
 DB_PATH = "crm_cotizaciones.sqlite"
 
