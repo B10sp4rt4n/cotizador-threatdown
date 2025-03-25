@@ -169,6 +169,27 @@ if "usuario" not in st.session_state:
                     st.error("❌ Credenciales incorrectas.")
         st.stop()
 
+def ver_historial(usuario):
+    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
+    conn = conectar_db()
+    if usuario['tipo'] == 'superadmin':
+        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    elif usuario['tipo'] == 'admin':
+        query = f"""
+            SELECT * FROM cotizaciones
+            WHERE usuario_id IN (
+                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
+            ) ORDER BY fecha DESC
+        """
+        df = pd.read_sql_query(query, conn)
+    else:
+        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    conn.close()
+    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
+    return df
+
 # =================== Mensaje de bienvenida ===================
 if "usuario" in st.session_state:
     st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
@@ -228,29 +249,9 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
     print("[LOG] Cotización guardada exitosamente")
     return cotizacion_id
 
-def ver_historial(usuario):
-    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
-    conn = conectar_db()
-    if usuario['tipo'] == 'superadmin':
-        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    elif usuario['tipo'] == 'admin':
-        query = f"""
-            SELECT * FROM cotizaciones
-            WHERE usuario_id IN (
-                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
-            ) ORDER BY fecha DESC
-        """
-        df = pd.read_sql_query(query, conn)
-    else:
-        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    conn.close()
-    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
-    return df
+
 
 # ... (resto del código sigue igual)
-
 
 
 # ... (resto del código sigue igual 1)
