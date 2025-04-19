@@ -6,6 +6,10 @@ from datetime import date
 import io
 import bcrypt
 
+# DEBE SER LA PRIMERA LLAMADA A STREAMLIT
+st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+
+
 # ========================
 # Configuración inicial
 # ========================
