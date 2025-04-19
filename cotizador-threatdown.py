@@ -40,28 +40,6 @@ def autenticar_usuario(username, password):
         return verificar_password(password, resultado[0])
     return False
 
-# SOLO ejecutar una vez para crear usuario admin por defecto
-def crear_usuario_inicial():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
-    username = "admin"
-    password_plano = "admin123"
-    password_hash = bcrypt.hashpw(password_plano.encode(), bcrypt.gensalt()).decode()
-    try:
-        cursor.execute("""
-            INSERT INTO usuarios (nombre, username, password, rol)
-            VALUES (?, ?, ?, ?)
-        """, ("Administrador", username, password_hash, "admin"))
-        conn.commit()
-        st.success("✅ Usuario 'admin' creado con contraseña 'admin123'")
-    except sqlite3.IntegrityError:
-        st.info("⚠️ El usuario 'admin' ya existe.")
-    finally:
-        conn.close()
-
-crear_usuario_inicial()
-
-
 # ========================
 # Funciones de base de datos
 # ========================
@@ -108,14 +86,34 @@ def inicializar_db():
     conn.commit()
     conn.close()
 
-def conectar_db():
-    return sqlite3.connect(DB_PATH)
+# ========================
+# Crear usuario administrador (una sola vez)
+# ========================
+
+def crear_usuario_inicial():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    username = "admin"
+    password_plano = "admin123"
+    password_hash = hash_password(password_plano)
+    try:
+        cursor.execute("""
+            INSERT INTO usuarios (nombre, username, password, rol)
+            VALUES (?, ?, ?, ?)
+        """, ("Administrador", username, password_hash, "admin"))
+        conn.commit()
+        st.success("✅ Usuario 'admin' creado con contraseña 'admin123'")
+    except sqlite3.IntegrityError:
+        st.info("⚠️ El usuario 'admin' ya existe.")
+    finally:
+        conn.close()
 
 # ========================
-# Login de usuario
+# Inicialización y Login
 # ========================
 
 inicializar_db()
+crear_usuario_inicial()
 
 if "usuario_autenticado" not in st.session_state:
     st.session_state.usuario_autenticado = False
@@ -141,7 +139,7 @@ if not st.session_state.usuario_autenticado:
 
         if st.button("Restablecer contraseña"):
             if autenticar_usuario(admin_username, admin_password):
-                conn = conectar_db()
+                conn = sqlite3.connect(DB_PATH)
                 cursor = conn.cursor()
                 nuevo_hash = hash_password(nueva_password)
                 cursor.execute("UPDATE usuarios SET password = ? WHERE username = ?", (nuevo_hash, usuario_a_modificar))
@@ -152,6 +150,10 @@ if not st.session_state.usuario_autenticado:
                 st.error("Credenciales de administrador incorrectas.")
 
     st.stop()
+
+# Aquí empieza el contenido del cotizador una vez autenticado
+st.title("Cotizador ThreatDown con CRM")
+# Aquí puedes pegar el resto del código original del cotizador
 
 # Aquí continúa el resto del código después del login exitoso...
 # Puedes pegar el bloque completo de tu lógica de cotización aquí a partir de la línea:
