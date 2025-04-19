@@ -6,22 +6,19 @@ from datetime import date
 import io
 import bcrypt
 
-# DEBE SER LA PRIMERA LLAMADA A STREAMLIT
+# ✅ Esta debe ser la primera instrucción de Streamlit
 st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
 
-
 # ========================
-# Configuración inicial
-# ========================
-
-st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
-
 # Inicializar variables de sesión
+# ========================
 for key in ["df_tabla_descuento", "df_cotizacion", "cliente", "contacto", "propuesta", "fecha", "responsable"]:
     if key not in st.session_state:
         st.session_state[key] = None if key != "fecha" else date.today()
 
-# Crear ruta segura para base de datos en entorno escribible
+# ========================
+# Configuración base de datos
+# ========================
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
 # ========================
@@ -106,9 +103,9 @@ def crear_usuario_inicial():
             VALUES (?, ?, ?, ?)
         """, ("Administrador", username, password_hash, "admin"))
         conn.commit()
-        st.success("✅ Usuario 'admin' creado con contraseña 'admin123'")
+        print("✅ Usuario 'admin' creado con contraseña 'admin123'")
     except sqlite3.IntegrityError:
-        st.info("⚠️ El usuario 'admin' ya existe.")
+        print("⚠️ El usuario 'admin' ya existe.")
     finally:
         conn.close()
 
@@ -133,7 +130,6 @@ if not st.session_state.usuario_autenticado:
         else:
             st.error("Usuario o contraseña incorrectos")
 
-    # Mostrar formulario para restablecer contraseña
     if st.checkbox("¿Olvidaste tu contraseña?"):
         st.info("Solo un administrador puede restablecer contraseñas.")
         admin_username = st.text_input("Usuario administrador")
@@ -155,9 +151,6 @@ if not st.session_state.usuario_autenticado:
 
     st.stop()
 
-# Aquí empieza el contenido del cotizador una vez autenticado
-st.title("Cotizador ThreatDown con CRM")
-# Aquí puedes pegar el resto del código original del cotizador
 
 # Aquí continúa el resto del código después del login exitoso...
 # Puedes pegar el bloque completo de tu lógica de cotización aquí a partir de la línea:
