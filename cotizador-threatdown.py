@@ -125,7 +125,7 @@ if not st.session_state.usuario_autenticado:
     if st.button("Iniciar sesión"):
         if autenticar_usuario(username, password):
             st.session_state.usuario_autenticado = True
-            st.experimental_rerun()
+            st.rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
 
