@@ -7,7 +7,15 @@ import os
 from datetime import date
 import io
 import bcrypt
+import streamlit as st
 
+# 🔐 ESTA LÍNEA DEBE SER LA PRIMERA DE STREAMLIT
+st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+
+# ✅ NADA de código Streamlit antes de esta línea
+st.title("Esto sí funciona")
+
+st.write("Ya puedes continuar desde aquí...")
 # ========================
 # Inicializar variables de sesión
 # ========================
