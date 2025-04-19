@@ -1,13 +1,12 @@
 import streamlit as st
+st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+
 import pandas as pd
 import sqlite3
 import os
 from datetime import date
 import io
 import bcrypt
-
-# ✅ Esta debe ser la primera instrucción de Streamlit
-st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
 
 # ========================
 # Inicializar variables de sesión
@@ -88,7 +87,7 @@ def inicializar_db():
     conn.close()
 
 # ========================
-# Crear usuario administrador (una sola vez)
+# Login de usuario y lógica principal
 # ========================
 
 def crear_usuario_inicial():
@@ -103,16 +102,12 @@ def crear_usuario_inicial():
             VALUES (?, ?, ?, ?)
         """, ("Administrador", username, password_hash, "admin"))
         conn.commit()
-        print("✅ Usuario 'admin' creado con contraseña 'admin123'")
     except sqlite3.IntegrityError:
-        print("⚠️ El usuario 'admin' ya existe.")
+        pass
     finally:
         conn.close()
 
-# ========================
-# Inicialización y Login
-# ========================
-
+# Ejecutar inicialización después de set_page_config y sin usar st.xxx antes
 inicializar_db()
 crear_usuario_inicial()
 
@@ -150,6 +145,10 @@ if not st.session_state.usuario_autenticado:
                 st.error("Credenciales de administrador incorrectas.")
 
     st.stop()
+
+# Aquí empieza el contenido del cotizador una vez autenticado
+st.title("Cotizador ThreatDown con CRM")
+# Aquí puedes continuar pegando el resto del código de cotización
 
 
 # Aquí continúa el resto del código después del login exitoso...
