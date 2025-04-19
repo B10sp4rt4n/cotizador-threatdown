@@ -108,7 +108,32 @@ if not st.session_state.usuario_autenticado:
             st.experimental_rerun()
         else:
             st.error("Usuario o contraseña incorrectos")
+
+    # Mostrar formulario para restablecer contraseña
+    if st.checkbox("¿Olvidaste tu contraseña?"):
+        st.info("Solo un administrador puede restablecer contraseñas.")
+        admin_username = st.text_input("Usuario administrador")
+        admin_password = st.text_input("Contraseña administrador", type="password")
+        usuario_a_modificar = st.text_input("Usuario al que deseas cambiarle la contraseña")
+        nueva_password = st.text_input("Nueva contraseña", type="password")
+
+        if st.button("Restablecer contraseña"):
+            if autenticar_usuario(admin_username, admin_password):
+                conn = conectar_db()
+                cursor = conn.cursor()
+                nuevo_hash = hash_password(nueva_password)
+                cursor.execute("UPDATE usuarios SET password = ? WHERE username = ?", (nuevo_hash, usuario_a_modificar))
+                conn.commit()
+                conn.close()
+                st.success(f"La contraseña de '{usuario_a_modificar}' fue actualizada.")
+            else:
+                st.error("Credenciales de administrador incorrectas.")
+
     st.stop()
+
+# Aquí continúa el resto del código después del login exitoso...
+# Puedes pegar el bloque completo de tu lógica de cotización aquí a partir de la línea:
+# st.title("Cotizador ThreatDown con CRM")
 
 
 # ========================
