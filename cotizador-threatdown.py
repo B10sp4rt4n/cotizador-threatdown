@@ -1,17 +1,28 @@
-
 import streamlit as st
 import pandas as pd
 import sqlite3
 import os
 from datetime import date
+import io
 
+# ========================
+# Configuración inicial
+# ========================
+
+st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+
+# Inicializar variables de sesión
+for key in ["df_tabla_descuento", "df_cotizacion", "cliente", "contacto", "propuesta", "fecha", "responsable"]:
+    if key not in st.session_state:
+        st.session_state[key] = None if key != "fecha" else date.today()
 
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
 # ========================
-# Crear base y tablas si no existen
+# Funciones de base de datos
 # ========================
+
 def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
@@ -89,8 +100,9 @@ def ver_historial():
     conn.close()
     return df
 
-# Inicializar base si es primera vez
-inicializar_db()
+# ========================
+# Cargar archivo de datos
+# ========================
 
 @st.cache_data
 def cargar_datos():
@@ -101,15 +113,26 @@ def cargar_datos():
 
 df_precios = cargar_datos()
 
+# ========================
+# Interfaz principal
+# ========================
+
 st.title("Cotizador ThreatDown con CRM")
+inicializar_db()
 
+# ========================
+# Entradas del usuario
+# ========================
 st.sidebar.header("Datos de la cotización")
-cliente = st.sidebar.text_input("Cliente")
-contacto = st.sidebar.text_input("Nombre de contacto")
-propuesta = st.sidebar.text_input("Nombre de la propuesta")
-fecha = st.sidebar.date_input("Fecha", value=date.today())
-responsable = st.sidebar.text_input("Responsable / Vendedor")
+st.session_state.cliente = st.sidebar.text_input("Cliente", value=st.session_state.cliente or "")
+st.session_state.contacto = st.sidebar.text_input("Nombre de contacto", value=st.session_state.contacto or "")
+st.session_state.propuesta = st.sidebar.text_input("Nombre de la propuesta", value=st.session_state.propuesta or "")
+st.session_state.fecha = st.sidebar.date_input("Fecha", value=st.session_state.fecha)
+st.session_state.responsable = st.sidebar.text_input("Responsable / Vendedor", value=st.session_state.responsable or "")
 
+# ========================
+# Selección de productos
+# ========================
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
 termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
 
@@ -156,20 +179,27 @@ for prod in seleccion:
     else:
         st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
 
-if cliente or propuesta or responsable:
+# ========================
+# Mostrar datos del cliente
+# ========================
+if st.session_state.cliente or st.session_state.propuesta or st.session_state.responsable:
     st.subheader("Datos de la cotización")
-    st.markdown(f"**Cliente:** {cliente}")
-    st.markdown(f"**Contacto:** {contacto}")
-    st.markdown(f"**Propuesta:** {propuesta}")
-    st.markdown(f"**Fecha:** {fecha.strftime('%Y-%m-%d')}")
-    st.markdown(f"**Responsable:** {responsable}")
+    st.markdown(f"**Cliente:** {st.session_state.cliente}")
+    st.markdown(f"**Contacto:** {st.session_state.contacto}")
+    st.markdown(f"**Propuesta:** {st.session_state.propuesta}")
+    st.markdown(f"**Fecha:** {st.session_state.fecha.strftime('%Y-%m-%d')}")
+    st.markdown(f"**Responsable:** {st.session_state.responsable}")
+
+# ========================
+# Cotización (costos y venta)
+# ========================
 
 costo_total = 0
 if cotizacion:
-    df_cotizacion = pd.DataFrame(cotizacion)
+    st.session_state.df_cotizacion = pd.DataFrame(cotizacion)
     st.subheader("Resumen de Cotización (costos)")
-    st.dataframe(df_cotizacion)
-    costo_total = df_cotizacion["Subtotal"].sum()
+    st.dataframe(st.session_state.df_cotizacion)
+    costo_total = st.session_state.df_cotizacion["Subtotal"].sum()
     st.success(f"Costo total con descuentos aplicados: ${costo_total:,.2f}")
 
 precio_venta_total = 0
@@ -182,8 +212,10 @@ if productos_para_tabla_secundaria:
         precio_unitario = item["Precio Unitario de Lista"]
         precio_total_lista = precio_unitario * cantidad
 
-        descuento_directo = st.number_input(f"Descuento directo (%) sobre lista para '{prod}':",
-                                            0.0, 100.0, 0.0, key=f"direct_discount_{prod}")
+        descuento_directo = st.number_input(
+            f"Descuento directo (%) sobre lista para '{prod}':",
+            0.0, 100.0, 0.0, key=f"direct_discount_{prod}"
+        )
         precio_con_descuento = precio_total_lista * (1 - descuento_directo / 100)
 
         tabla_descuento.append({
@@ -195,16 +227,18 @@ if productos_para_tabla_secundaria:
             "Precio Total con Descuento": round(precio_con_descuento, 2)
         })
 
-    df_tabla_descuento = pd.DataFrame(tabla_descuento)
-    st.dataframe(df_tabla_descuento)
-    precio_venta_total = df_tabla_descuento["Precio Total con Descuento"].sum()
+    st.session_state.df_tabla_descuento = pd.DataFrame(tabla_descuento)
+    st.dataframe(st.session_state.df_tabla_descuento)
+    precio_venta_total = st.session_state.df_tabla_descuento["Precio Total con Descuento"].sum()
     st.success(f"Precio total de venta: ${precio_venta_total:,.2f}")
-else:
-    st.info("Aún no hay productos válidos para aplicar descuento directo.")
 
+# ========================
+# Guardar cotización
+# ========================
 if precio_venta_total > 0 and costo_total > 0:
     utilidad = precio_venta_total - costo_total
     margen = (utilidad / precio_venta_total) * 100
+
     st.subheader("Utilidad de la operación")
     col1, col2 = st.columns(2)
     col1.metric("Utilidad total", f"${utilidad:,.2f}")
@@ -212,91 +246,25 @@ if precio_venta_total > 0 and costo_total > 0:
 
     if st.button("💾 Guardar cotización"):
         datos = {
-            "cliente": cliente,
-            "contacto": contacto,
-            "propuesta": propuesta,
-            "fecha": fecha.strftime('%Y-%m-%d'),
-            "responsable": responsable,
+            "cliente": st.session_state.cliente,
+            "contacto": st.session_state.contacto,
+            "propuesta": st.session_state.propuesta,
+            "fecha": st.session_state.fecha.strftime('%Y-%m-%d'),
+            "responsable": st.session_state.responsable,
             "total_venta": precio_venta_total,
             "total_costo": costo_total,
             "utilidad": utilidad,
             "margen": margen
         }
-        guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
+
+        guardar_cotizacion(datos,
+                           st.session_state.df_tabla_descuento.to_dict("records"),
+                           st.session_state.df_cotizacion.to_dict("records"))
         st.success("✅ Cotización guardada en CRM")
 
-st.subheader("📋 Historial de cotizaciones")
-try:
-    df_hist = ver_historial()
-    st.dataframe(df_hist)
-except:
-    st.warning("No hay cotizaciones guardadas aún.")
-
-
-
-# Vista detallada de cotización
-st.subheader("🔍 Ver detalle de cotización guardada")
-try:
-    df_hist = ver_historial()
-
-    if not df_hist.empty:
-        opciones = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
-        seleccion_detalle = st.selectbox("Selecciona una cotización para ver el detalle:", opciones)
-
-        if seleccion_detalle:
-            id_seleccionado = int(seleccion_detalle.split(" - ")[0])
-            conn = conectar_db()
-            detalle = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {id_seleccionado}", conn)
-            productos = pd.read_sql_query(f"SELECT * FROM detalle_productos WHERE cotizacion_id = {id_seleccionado}", conn)
-            conn.close()
-
-            cotiz = detalle.iloc[0]
-            st.markdown(f"**Cliente:** {cotiz['cliente']}")
-            st.markdown(f"**Contacto:** {cotiz['contacto']}")
-            st.markdown(f"**Propuesta:** {cotiz['propuesta']}")
-            st.markdown(f"**Fecha:** {cotiz['fecha']}")
-            st.markdown(f"**Responsable:** {cotiz['responsable']}")
-
-            st.markdown(f"**Total Venta:** ${cotiz['total_venta']:,.2f}")
-            st.markdown(f"**Total Costo:** ${cotiz['total_costo']:,.2f}")
-            st.markdown(f"**Utilidad:** ${cotiz['utilidad']:,.2f}")
-            st.markdown(f"**Margen:** {cotiz['margen']:.2f}%")
-
-            st.markdown("**Productos (Venta):**")
-            st.dataframe(productos[productos["tipo_origen"] == "venta"].drop(columns=["cotizacion_id", "tipo_origen"]))
-
-            st.markdown("**Productos (Costo):**")
-            st.dataframe(productos[productos["tipo_origen"] == "costo"].drop(columns=["cotizacion_id", "tipo_origen"]))
-except:
-    st.warning("No se pudo cargar el detalle de cotizaciones.")
-
-# Comparador de cotizaciones
-st.subheader("📊 Comparador de propuestas")
-try:
-    df_hist = ver_historial()
-
-    if not df_hist.empty:
-        opciones_multi = df_hist.apply(lambda row: f"{row['id']} - {row['propuesta']} ({row['cliente']})", axis=1)
-        seleccion_multi = st.multiselect("Selecciona una o más propuestas para comparar:", opciones_multi)
-
-        if seleccion_multi:
-            ids = tuple(int(op.split(" - ")[0]) for op in seleccion_multi)
-            conn = conectar_db()
-            if len(ids) == 1:
-                query = f"SELECT * FROM cotizaciones WHERE id = {ids[0]}"
-            else:
-                query = f"SELECT * FROM cotizaciones WHERE id IN {ids}"
-            comparativo = pd.read_sql_query(query, conn)
-            conn.close()
-
-            st.dataframe(comparativo[["id", "cliente", "propuesta", "fecha", "total_venta", "total_costo", "utilidad", "margen"]])
-except:
-    st.warning("No se pudo mostrar el comparador.")
-
-
-
-# Exportar cotización para cliente (Excel)
-import io
+# ========================
+# Exportar a Excel
+# ========================
 
 def exportar_cotizacion_cliente(df_venta, encabezado):
     df_export = df_venta[["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total con Descuento"]].copy()
@@ -317,34 +285,30 @@ def exportar_cotizacion_cliente(df_venta, encabezado):
     with pd.ExcelWriter(output, engine="xlsxwriter") as writer:
         meta.to_excel(writer, index=False, sheet_name="Datos Cliente")
         df_export.to_excel(writer, index=False, sheet_name="Cotización")
-
-        workbook  = writer.book
         worksheet = writer.sheets["Cotización"]
-        total_row = len(df_export) + 2
-        worksheet.write(f"C{total_row}", "Total General:")
-        worksheet.write_formula(f"D{total_row}", f"=SUM(D2:D{len(df_export)+1})")
+        worksheet.write(f"C{len(df_export)+2}", "Total General:")
+        worksheet.write_formula(f"D{len(df_export)+2}", f"=SUM(D2:D{len(df_export)+1})")
 
     output.seek(0)
     return output
 
-# Mostrar botón de exportar si hay datos
-if df_tabla_descuento and cliente and propuesta:
+if (
+    st.session_state.df_tabla_descuento is not None and
+    not st.session_state.df_tabla_descuento.empty and
+    st.session_state.cliente and st.session_state.propuesta
+):
     encabezado_cliente = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable
+        "cliente": st.session_state.cliente,
+        "contacto": st.session_state.contacto,
+        "propuesta": st.session_state.propuesta,
+        "fecha": st.session_state.fecha.strftime('%Y-%m-%d'),
+        "responsable": st.session_state.responsable
     }
 
-    excel_file = exportar_cotizacion_cliente(pd.DataFrame(tabla_descuento), encabezado_cliente)
+    excel_file = exportar_cotizacion_cliente(st.session_state.df_tabla_descuento, encabezado_cliente)
     st.download_button(
         label="📤 Exportar cotización para cliente (Excel)",
         data=excel_file,
-        file_name=f"cotizacion_{cliente}_{propuesta}.xlsx",
+        file_name=f"cotizacion_{st.session_state.cliente}_{st.session_state.propuesta}.xlsx",
         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     )
-
-    st.warning("No hay cotizaciones guardadas aún.")
-
-
