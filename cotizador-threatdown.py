@@ -40,6 +40,28 @@ def autenticar_usuario(username, password):
         return verificar_password(password, resultado[0])
     return False
 
+# SOLO ejecutar una vez para crear usuario admin por defecto
+def crear_usuario_inicial():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    username = "admin"
+    password_plano = "admin123"
+    password_hash = bcrypt.hashpw(password_plano.encode(), bcrypt.gensalt()).decode()
+    try:
+        cursor.execute("""
+            INSERT INTO usuarios (nombre, username, password, rol)
+            VALUES (?, ?, ?, ?)
+        """, ("Administrador", username, password_hash, "admin"))
+        conn.commit()
+        st.success("✅ Usuario 'admin' creado con contraseña 'admin123'")
+    except sqlite3.IntegrityError:
+        st.info("⚠️ El usuario 'admin' ya existe.")
+    finally:
+        conn.close()
+
+crear_usuario_inicial()
+
+
 # ========================
 # Funciones de base de datos
 # ========================
