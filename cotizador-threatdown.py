@@ -5,6 +5,14 @@ import sqlite3
 import os
 from datetime import date
 
+
+# Muestra el directorio actual
+st.write("Directorio actual:", os.getcwd())
+
+# Muestra todos los archivos y carpetas en ese directorio
+st.write("Contenido del directorio:", os.listdir())
+
+
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
