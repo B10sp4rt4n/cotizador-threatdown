@@ -150,3 +150,4 @@ inicializar_db()
 # Aquí seguiría el mismo código exacto que ya tienes de inputs, selección, cálculos, etc.
 st.info("🎉 El usuario está autenticado. Continúa con la cotización como siempre.")
 
+
