@@ -6,6 +6,8 @@ import os
 from datetime import date
 from clientes_module import vista_clientes
 
+from fpdf import FPDF
+
 # Crear ruta segura para base de datos en entorno escribible
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
