@@ -8,6 +8,8 @@ from datetime import date
 from fpdf import FPDF
 import uuid # Para generar IDs únicos para productos manuales
 
+st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+
 # --- Configuración Inicial ---
 # Crear ruta segura para base de datos en entorno escribible
 APP_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() else os.getcwd()
