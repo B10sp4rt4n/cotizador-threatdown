@@ -200,7 +200,7 @@ if 'manual_products' not in st.session_state:
     st.session_state.manual_products = [] # Lista para guardar dicts de productos manuales
 
 # --- Interfaz de Streamlit ---
-st.set_page_config(layout="wide") # Usar layout ancho
+ 
 st.title("Cotizador ThreatDown con CRM")
 
 # --- Menú Lateral ---
