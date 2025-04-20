@@ -14,174 +14,83 @@ APP_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() e
 DB_PATH = os.path.join(APP_DIR, "crm_cotizaciones.sqlite")
 
 # --- Funciones de Base de Datos ---
+
+
 def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    # Tabla Cotizaciones
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS cotizaciones (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cliente TEXT,
-            contacto TEXT,
-            propuesta TEXT,
-            fecha TEXT,
-            responsable TEXT,
-            total_venta REAL,
-            total_costo REAL,
-            utilidad REAL,
-            margen REAL,
-            vigencia TEXT DEFAULT '30 días',
-            condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.'
-        )
-    """)
-    # Tabla Detalle Productos
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS detalle_productos (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            cotizacion_id INTEGER,
-            producto TEXT,
-            cantidad INTEGER,
-            precio_unitario REAL,       -- Precio base (costo) o Precio Lista (venta)
-            precio_total REAL,          -- Subtotal (costo) o Precio con Descuento (venta)
-            descuento_aplicado REAL,    -- Item Disc % (costo) o Descuento Directo % (venta)
-            tipo_origen TEXT,           -- 'costo' o 'venta'
-            # Nuevas columnas para almacenar más detalles si es necesario (opcional)
-            # channel_deal_disc_costo REAL DEFAULT 0,
-            # precio_total_lista_venta REAL DEFAULT 0,
-            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
-        )
-    """)
-
-    # Verificar y agregar columnas nuevas si no existen (mejor hacerlo aquí una sola vez)
-    conn.execute("PRAGMA foreign_keys = ON") # Habilitar claves foráneas
-    cursor.execute("PRAGMA table_info(cotizaciones)")
-    columnas_cot = [col[1] for col in cursor.fetchall()]
-    if "vigencia" not in columnas_cot:
-        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT DEFAULT '30 días';")
-    if "condiciones_comerciales" not in columnas_cot:
-        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.';")
-
-    # cursor.execute("PRAGMA table_info(detalle_productos)")
-    # columnas_det = [col[1] for col in cursor.fetchall()]
-    # if "channel_deal_disc_costo" not in columnas_det:
-    #     cursor.execute("ALTER TABLE detalle_productos ADD COLUMN channel_deal_disc_costo REAL DEFAULT 0;")
-    # if "precio_total_lista_venta" not in columnas_det:
-    #      cursor.execute("ALTER TABLE detalle_productos ADD COLUMN precio_total_lista_venta REAL DEFAULT 0;")
-
-
-    conn.commit()
-    conn.close()
-
-def conectar_db():
-    return sqlite3.connect(DB_PATH)
-
-def guardar_cotizacion(datos_generales, productos_venta_final, productos_costo_final):
-    """Guarda la cotización y sus detalles en la base de datos."""
-    required_fields = ["cliente", "propuesta", "responsable"]
-    if not all(datos_generales.get(field) for field in required_fields):
-        st.error("❌ Error: Cliente, Propuesta y Responsable son campos obligatorios para guardar.")
-        return None # Retorna None si faltan campos obligatorios
-
-    conn = conectar_db()
-    cursor = conn.cursor()
     try:
+        # Tabla Cotizaciones
         cursor.execute("""
-            INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable,
-                                      total_venta, total_costo, utilidad, margen,
-                                      vigencia, condiciones_comerciales)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, (
-            datos_generales["cliente"], datos_generales["contacto"], datos_generales["propuesta"],
-            datos_generales["fecha"], datos_generales["responsable"],
-            datos_generales["total_venta"], datos_generales["total_costo"],
-            datos_generales["utilidad"], datos_generales["margen"],
-            datos_generales["vigencia"], datos_generales["condiciones_comerciales"]
-        ))
-        cotizacion_id = cursor.lastrowid
+            CREATE TABLE IF NOT EXISTS cotizaciones (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cliente TEXT,
+                contacto TEXT,
+                propuesta TEXT,
+                fecha TEXT,
+                responsable TEXT,
+                total_venta REAL,
+                total_costo REAL,
+                utilidad REAL,
+                margen REAL,
+                vigencia TEXT DEFAULT '30 días',
+                condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.'
+            )
+        """)
 
-        # Guardar productos de VENTA
-        for p in productos_venta_final:
-            cursor.execute("""
-                INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
-                                               precio_unitario, precio_total, descuento_aplicado,
-                                               tipo_origen)
-                VALUES (?, ?, ?, ?, ?, ?, 'venta')
-            """, (
-                cotizacion_id, p["Producto"], p["Cantidad"],
-                p["Precio Unitario de Lista"],          # precio_unitario (en venta es el de lista)
-                p["Precio Total con Descuento"],    # precio_total (en venta es el final con descuento)
-                p["Descuento %"]                    # descuento_aplicado (en venta es el directo)
-                # p.get("Precio Total de Lista", p["Precio Unitario de Lista"] * p["Cantidad"]) # precio_total_lista_venta (opcional)
-            ))
+        # Tabla Detalle Productos
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS detalle_productos (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                cotizacion_id INTEGER,
+                producto TEXT,
+                cantidad INTEGER,
+                precio_unitario REAL,
+                precio_total REAL,
+                descuento_aplicado REAL,
+                tipo_origen TEXT,
+                FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE -- Añadido ON DELETE CASCADE (opcional pero útil)
+            )
+        """)
 
-        # Guardar productos de COSTO
-        for p in productos_costo_final:
-             # Asegurarse que las claves existan, poner default 0 si no
-            item_disc = p.get("Item Disc. %", 0.0)
-            channel_deal_disc = p.get("Channel + Deal Disc. %", 0.0)
+        # Verificar y agregar columnas nuevas a 'cotizaciones' si no existen
+        cursor.execute("PRAGMA table_info(cotizaciones)")
+        columnas_cot = [col[1] for col in cursor.fetchall()]
+        if "vigencia" not in columnas_cot:
+            # Usar f-string o concatenación simple aquí es seguro ya que los nombres de columna son fijos
+            cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT DEFAULT '30 días'")
+        if "condiciones_comerciales" not in columnas_cot:
+            cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.'")
 
-            cursor.execute("""
-                INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
-                                               precio_unitario, precio_total, descuento_aplicado,
-                                               tipo_origen)
-                VALUES (?, ?, ?, ?, ?, ?, 'costo')
-            """, (
-                cotizacion_id, p["Producto"], p["Cantidad"],
-                p["Precio Base"],                   # precio_unitario (en costo es el base/MSRP)
-                p["Subtotal"],                      # precio_total (en costo es el subtotal calculado)
-                item_disc                           # descuento_aplicado (en costo guardamos el Item Disc.)
-                # channel_deal_disc                 # channel_deal_disc_costo (opcional)
-            ))
+        # --- Mover PRAGMA aquí ---
+        # Habilitar claves foráneas ANTES de confirmar la transacción
+        # donde se crearon tablas que dependen de ellas.
+        cursor.execute("PRAGMA foreign_keys = ON")
 
-        conn.commit()
-        st.success(f"✅ Cotización ID: {cotizacion_id} guardada exitosamente.")
-        return cotizacion_id
+        conn.commit() # Confirmar todos los cambios
+
     except sqlite3.Error as e:
-        st.error(f"❌ Error al guardar en la base de datos: {e}")
+        st.error(f"❌ Error durante la inicialización de la base de datos: {e}")
         conn.rollback() # Deshacer cambios si hubo error
-        return None
+        raise # Re-lanzar la excepción para que Streamlit la capture si es necesario
     finally:
         conn.close()
 
-
-def ver_historial():
-    conn = conectar_db()
-    try:
-        df = pd.read_sql_query("SELECT id, fecha, cliente, propuesta, total_venta, utilidad, margen FROM cotizaciones ORDER BY fecha DESC, id DESC", conn)
-        return df
-    except pd.io.sql.DatabaseError: # Manejo específico si la tabla no existe
-         st.warning("⚠️ No se encontró el historial de cotizaciones. Inicializando base de datos.")
-         inicializar_db() # Intenta inicializar de nuevo
-         return pd.DataFrame() # Retorna DataFrame vacío
-    except Exception as e:
-        st.error(f"Error al leer historial: {e}")
-        return pd.DataFrame()
-    finally:
-        conn.close()
-
-# --- Carga de Datos de Precios ---
-@st.cache_data
-def cargar_datos(file_path="precios_threatdown.xlsx"):
-    try:
-        df = pd.read_excel(file_path)
-        # Limpieza básica
-        df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
-        df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
-        # Asegurar que columnas clave existan
-        required_cols = ["Term (Month)", "Product Title", "MSRP USD", "Tier Min", "Tier Max"]
-        if not all(col in df.columns for col in required_cols):
-            st.error(f"El archivo Excel debe contener las columnas: {', '.join(required_cols)}")
-            return pd.DataFrame() # Retornar DF vacío si faltan columnas
-        return df.dropna(subset=["Tier Min", "Tier Max", "MSRP USD"])
-    except FileNotFoundError:
-        st.error(f"❌ Error: No se encontró el archivo de precios '{file_path}'. Asegúrate de que esté en el mismo directorio.")
-        return pd.DataFrame() # Retornar DF vacío
-    except Exception as e:
-        st.error(f"❌ Error al cargar o procesar el archivo Excel: {e}")
-        return pd.DataFrame()
+# --- El resto de tu código (incluyendo la llamada a inicializar_db() al principio) ---
+# ... (código anterior) ...
 
 # --- Inicializar DB y Cargar Datos ---
-inicializar_db()
+try:
+    inicializar_db()
+except Exception as e:
+    st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
+    st.exception(e) # Muestra el traceback completo en la app
+    st.stop() # Detiene la ejecución si la DB falla
+
+df_precios = cargar_datos()
+
+# ... (resto del código) ...
+
 df_precios = cargar_datos()
 
 # --- Inicializar Session State para Productos Manuales ---
