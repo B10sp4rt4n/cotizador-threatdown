@@ -354,9 +354,9 @@ class CotizacionPDFConLogo(FPDF):
                 p["precio_total_sin_descuento"] = p["precio_unitario"] * p["cantidad"]
             self.cell(60, 8, str(p["producto"]), 1)
             self.cell(20, 8, str(p["cantidad"]), 1, align="C")
-            self.cell(30, 8, f"${p['precio_unitario']:,.2f}", 1, align="R")
-            self.cell(30, 8, f"${p['precio_total_sin_descuento']:,.2f}", 1, align="R")
-            self.cell(30, 8, f"{p['descuento_aplicado']}%", 1, align="R")
+            self.cell(20, 8, f"${p['precio_unitario']:,.2f}", 1, align="R")
+            self.cell(20, 8, f"${p['precio_total_sin_descuento']:,.2f}", 1, align="R")
+            self.cell(20, 8, f"{p['descuento_aplicado']}%", 1, align="R")
             self.cell(30, 8, f"${p['precio_total']:,.2f}", 1, ln=True, align="R")
         self.ln(5)
 
