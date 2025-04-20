@@ -97,30 +97,6 @@ DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-
-    # Crear tabla clientes
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            apellido_paterno TEXT,
-            apellido_materno TEXT,
-            empresa TEXT,
-            correo TEXT,
-            telefono TEXT,
-            rfc TEXT,
-            calle TEXT,
-            numero_exterior TEXT,
-            numero_interior TEXT,
-            codigo_postal TEXT,
-            municipio TEXT,
-            ciudad TEXT,
-            estado TEXT,
-            notas TEXT
-        )
-    """)
-
-    # Crear tabla cotizaciones
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -135,8 +111,6 @@ def inicializar_db():
             margen REAL
         )
     """)
-
-    # Crear tabla detalle_productos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detalle_productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -150,8 +124,8 @@ def inicializar_db():
             FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
         )
     """)
-
-    # Columnas adicionales si no existen
+    
+    # Verificar y agregar columnas nuevas si no existen
     columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
     if "vigencia" not in columnas:
         cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
@@ -160,12 +134,6 @@ def inicializar_db():
 
     conn.commit()
     conn.close()
-
-
-
-
-
-
 
 def conectar_db():
     return sqlite3.connect(DB_PATH)
@@ -404,6 +372,145 @@ try:
 except:
     st.warning("No hay cotizaciones guardadas aún.")
 
+
+
+# =============================
+# Ver detalle de cotización seleccionada
+# =============================
+st.subheader("🔍 Ver detalle de cotización")
+
+conn = conectar_db()
+df_cotizaciones = pd.read_sql_query("SELECT id, propuesta, cliente, fecha FROM cotizaciones ORDER BY fecha DESC", conn)
+
+if df_cotizaciones.empty:
+    st.info("No hay cotizaciones guardadas para mostrar el detalle.")
+else:
+    df_cotizaciones["Resumen"] = df_cotizaciones["fecha"] + " - " + df_cotizaciones["cliente"] + " - " + df_cotizaciones["propuesta"]
+    seleccion_resumen = st.selectbox("Selecciona una cotización para ver el detalle:", df_cotizaciones["Resumen"])
+    
+    if seleccion_resumen:
+        cotizacion_id = int(df_cotizaciones[df_cotizaciones["Resumen"] == seleccion_resumen]["id"].values[0])
+        
+        # Datos generales
+        datos = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {cotizacion_id}", conn).iloc[0]
+        st.markdown(f"**Cliente:** {datos['cliente']}")
+        st.markdown(f"**Contacto:** {datos['contacto']}")
+        st.markdown(f"**Propuesta:** {datos['propuesta']}")
+        st.markdown(f"**Fecha:** {datos['fecha']}")
+        st.markdown(f"**Responsable:** {datos['responsable']}")
+        st.markdown(f"**Total Venta:** ${datos['total_venta']:,.2f}")
+        st.markdown(f"**Total Costo:** ${datos['total_costo']:,.2f}")
+        st.markdown(f"**Utilidad:** ${datos['utilidad']:,.2f}")
+        st.markdown(f"**Margen:** {datos['margen']:.2f}%")
+
+        # Productos de venta
+        st.markdown("### Productos cotizados (venta)")
+        df_venta = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'venta'
+        ''', conn)
+        st.dataframe(df_venta)
+
+        # Productos de costo
+        st.markdown("### Productos base (costos)")
+        df_costo = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'costo'
+        ''', conn)
+        st.dataframe(df_costo)
+
+conn.close()
+
+
+from fpdf import FPDF
+
+class CotizacionPDFConLogo(FPDF):
+    def header(self):
+        self.image("LOGO Syn Apps Sys_edited (2).png", x=10, y=8, w=50)
+        self.set_font("Helvetica", "B", 16)
+        self.set_xy(70, 12)
+        self.cell(0, 10, "Cotización de Servicios", ln=True, align="L")
+        self.ln(20)
+
+    def encabezado_cliente(self, datos):
+        self.set_font("Helvetica", "", 10)
+        self.cell(0, 8, f"Cliente: {datos['cliente']}", ln=True)
+        self.cell(0, 8, f"Contacto: {datos['contacto']}", ln=True)
+        self.cell(0, 8, f"Propuesta: {datos['propuesta']}", ln=True)
+        self.cell(0, 8, f"Fecha: {datos['fecha']}", ln=True)
+        self.cell(0, 8, f"Responsable: {datos['responsable']}", ln=True)
+        self.ln(5)
+
+    def tabla_productos(self, productos):
+        self.set_font("Helvetica", "B", 10)
+        self.cell(60, 8, "Producto", 1)
+        self.cell(20, 8, "Cantidad", 1, align="C")
+        self.cell(30, 8, "P. Unitario", 1, align="R")
+        self.cell(30, 8, "Total sin Desc.", 1, align="R")
+        self.cell(30, 8, "Descuento %", 1, align="R")
+        self.cell(40, 8, "Total", 1, ln=True, align="R")
+
+        self.set_font("Helvetica", "", 10)
+        for p in productos:
+            total_sin_descuento = p["precio_unitario"] * p["cantidad"]
+            self.cell(60, 8, str(p["producto"]), 1)
+            self.cell(20, 8, str(p["cantidad"]), 1, align="C")
+            self.cell(30, 8, f"${p['precio_unitario']:,.2f}", 1, align="R")
+            self.cell(30, 8, f"${total_sin_descuento:,.2f}", 1, align="R")
+            self.cell(30, 8, f"{p['descuento_aplicado']}%", 1, align="R")
+            self.cell(40, 8, f"${p['precio_total']:,.2f}", 1, ln=True, align="R")
+        self.ln(5)
+
+    def totales(self, total_venta):
+        self.set_font("Helvetica", "B", 12)
+        self.cell(0, 10, f"Total de la propuesta: ${total_venta:,.2f}", ln=True, align="R")
+        self.ln(10)
+
+    def condiciones(self, vigencia, condiciones):
+        self.set_font("Helvetica", "", 9)
+        self.multi_cell(0, 6, f"Vigencia de la propuesta: {vigencia}\n")
+        self.multi_cell(0, 6, f"{condiciones}")
+        self.ln(10)
+
+    def firma(self, responsable):
+        self.set_font("Helvetica", "", 10)
+        self.cell(0, 8, "Atentamente,", ln=True)
+        self.cell(0, 8, responsable, ln=True)
+        self.cell(0, 8, "SYNAPPSSYS", ln=True)
+
+# Botón para generar PDF desde vista de detalle
+if 'cotizacion_id' in locals():
+    if st.button("📄 Generar PDF para cliente"):
+        pdf = CotizacionPDFConLogo()
+        pdf.add_page()
+
+        datos_dict = {
+            "cliente": datos["cliente"],
+            "contacto": datos["contacto"],
+            "propuesta": datos["propuesta"],
+            "fecha": datos["fecha"],
+            "responsable": datos["responsable"]
+        }
+        productos = df_venta.to_dict("records")
+        total_venta = datos["total_venta"]
+
+        pdf.encabezado_cliente(datos_dict)
+        pdf.tabla_productos(productos)
+        pdf.totales(total_venta)
+        pdf.condiciones(datos["vigencia"], datos["condiciones_comerciales"])
+        pdf.firma(datos["responsable"])
+
+        pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
+        pdf.output(pdf_output_path)
+        with open(pdf_output_path, "rb") as file:
+            st.download_button(
+                label="📥 Descargar PDF de cotización",
+                data=file,
+                file_name=pdf_output_path,
+                mime="application/pdf"
+            )
 
 
 # =============================
