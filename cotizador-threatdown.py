@@ -13,68 +13,82 @@ import uuid # Para generar IDs únicos para productos manuales
 APP_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() else os.getcwd()
 DB_PATH = os.path.join(APP_DIR, "crm_cotizaciones.sqlite")
 
+
 # --- Funciones de Base de Datos ---
-
-
 def inicializar_db():
-    conn = sqlite3.connect(DB_PATH)
-    cursor = conn.cursor()
+    # ... (código de inicializar_db como lo tenías) ...
+    pass # Placeholder si copias solo este fragmento
+
+def conectar_db():
+    # ... (código de conectar_db) ...
+    pass # Placeholder
+
+def guardar_cotizacion(datos_generales, productos_venta_final, productos_costo_final):
+     # ... (código de guardar_cotizacion) ...
+     pass # Placeholder
+
+def ver_historial():
+     # ... (código de ver_historial) ...
+     pass # Placeholder
+
+
+# --- Carga de Datos de Precios --- <<<< ¡¡¡AÑADIR ESTO DE NUEVO!!!
+@st.cache_data
+def cargar_datos(file_path="precios_threatdown.xlsx"):
+    """Carga y procesa el archivo Excel de precios."""
     try:
-        # Tabla Cotizaciones
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cotizaciones (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cliente TEXT,
-                contacto TEXT,
-                propuesta TEXT,
-                fecha TEXT,
-                responsable TEXT,
-                total_venta REAL,
-                total_costo REAL,
-                utilidad REAL,
-                margen REAL,
-                vigencia TEXT DEFAULT '30 días',
-                condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.'
-            )
-        """)
+        # Asegúrate que el path sea correcto relativo a la app en Cloud
+        full_file_path = os.path.join(APP_DIR, file_path)
+        if not os.path.exists(full_file_path):
+             st.error(f"❌ Error: No se encontró el archivo de precios en la ruta esperada: '{full_file_path}'. Asegúrate de que esté incluido en tu repositorio y despliegue.")
+             return pd.DataFrame()
 
-        # Tabla Detalle Productos
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS detalle_productos (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                cotizacion_id INTEGER,
-                producto TEXT,
-                cantidad INTEGER,
-                precio_unitario REAL,
-                precio_total REAL,
-                descuento_aplicado REAL,
-                tipo_origen TEXT,
-                FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id) ON DELETE CASCADE -- Añadido ON DELETE CASCADE (opcional pero útil)
-            )
-        """)
+        df = pd.read_excel(full_file_path)
+        # Limpieza básica
+        df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
+        df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
+        # Asegurar que columnas clave existan
+        required_cols = ["Term (Month)", "Product Title", "MSRP USD", "Tier Min", "Tier Max"]
+        if not all(col in df.columns for col in required_cols):
+            st.error(f"El archivo Excel '{file_path}' debe contener las columnas: {', '.join(required_cols)}")
+            return pd.DataFrame() # Retornar DF vacío si faltan columnas
+        return df.dropna(subset=["Tier Min", "Tier Max", "MSRP USD"])
+    except FileNotFoundError:
+        # Este error es menos probable ahora con la comprobación explícita de os.path.exists
+        st.error(f"❌ Error interno (FileNotFound): No se encontró el archivo de precios '{full_file_path}'.")
+        return pd.DataFrame()
+    except Exception as e:
+        st.error(f"❌ Error al cargar o procesar el archivo Excel '{file_path}': {e}")
+        import traceback
+        st.error(traceback.format_exc()) # Muestra más detalles del error
+        return pd.DataFrame()
 
-        # Verificar y agregar columnas nuevas a 'cotizaciones' si no existen
-        cursor.execute("PRAGMA table_info(cotizaciones)")
-        columnas_cot = [col[1] for col in cursor.fetchall()]
-        if "vigencia" not in columnas_cot:
-            # Usar f-string o concatenación simple aquí es seguro ya que los nombres de columna son fijos
-            cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT DEFAULT '30 días'")
-        if "condiciones_comerciales" not in columnas_cot:
-            cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT DEFAULT 'Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.'")
+# --- Inicializar DB y Cargar Datos ---
+st.write(f"DEBUG: Directorio App: {APP_DIR}") # Mensaje de depuración
+st.write(f"DEBUG: Ruta DB: {DB_PATH}")
+try:
+    st.write("DEBUG: Intentando inicializar DB...")
+    inicializar_db()
+    st.write("DEBUG: DB inicializada.")
+except Exception as e:
+    st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
+    st.exception(e) # Muestra el traceback completo en la app
+    st.stop() # Detiene la ejecución si la DB falla
 
-        # --- Mover PRAGMA aquí ---
-        # Habilitar claves foráneas ANTES de confirmar la transacción
-        # donde se crearon tablas que dependen de ellas.
-        cursor.execute("PRAGMA foreign_keys = ON")
+st.write("DEBUG: Intentando cargar datos de precios...")
+# --- LLAMADA ÚNICA Y CORRECTA ---
+df_precios = cargar_datos() # <--- Llamada aquí
+st.write(f"DEBUG: Datos cargados. df_precios es None? {df_precios is None}. Filas: {len(df_precios) if df_precios is not None else 'N/A'}")
 
-        conn.commit() # Confirmar todos los cambios
+# --- QUITAR LA LLAMADA DUPLICADA ---
+# df_precios = cargar_datos() # <<<--- ELIMINA ESTA LÍNEA
 
-    except sqlite3.Error as e:
-        st.error(f"❌ Error durante la inicialización de la base de datos: {e}")
-        conn.rollback() # Deshacer cambios si hubo error
-        raise # Re-lanzar la excepción para que Streamlit la capture si es necesario
-    finally:
-        conn.close()
+# --- Inicializar Session State para Productos Manuales ---
+if 'manual_products' not in st.session_state:
+    st.session_state.manual_products = []
+
+# ... (El resto de tu código de Streamlit: UI, lógica, etc.) ...
+
 
 # --- El resto de tu código (incluyendo la llamada a inicializar_db() al principio) ---
 # ... (código anterior) ...
