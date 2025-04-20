@@ -119,18 +119,6 @@ def cargar_datos():
 
 df_precios = cargar_datos()
 
-
-# Agregar producto personalizado como opción inicial
-producto_personalizado_placeholder = {
-    "Product Title": "Producto personalizado (opcional)",
-    "MSRP USD": 0.0,
-    "Tier Min": 1,
-    "Tier Max": 9999,
-    "Term (Month)": termino_seleccionado
-}
-df_precios = pd.concat([df_precios, pd.DataFrame([producto_personalizado_placeholder])], ignore_index=True)
-
-
 st.title("Cotizador ThreatDown con CRM")
 
 menu = st.sidebar.selectbox("Secciones", ["Cotizaciones", "Clientes"])
@@ -170,6 +158,36 @@ cotizacion = []
 productos_para_tabla_secundaria = []
 
 for prod in seleccion:
+if prod == "Producto personalizado (opcional)":
+        st.warning("⚠️ Has seleccionado 'Producto personalizado'. Por favor completa los siguientes datos.")
+        nombre_personalizado = st.text_input("Nombre del producto personalizado", key=f"nombre_{prod}")
+        descripcion = st.text_area("Descripción", key=f"descripcion_{prod}")
+        precio_base = st.number_input("Precio base unitario", min_value=0.0, value=0.0, step=0.01, key=f"precio_{prod}")
+        item_disc = st.number_input("Descuento 'Item' (%)", 0.0, 100.0, 0.0, key=f"item_{prod}")
+        channel_disc = st.number_input("Descuento 'Channel Disc.' (%)", 0.0, 100.0, 0.0, key=f"channel_{prod}")
+        deal_reg_disc = st.number_input("Descuento 'Deal Reg. Disc.' (%)", 0.0, 100.0, 0.0, key=f"deal_{prod}")
+
+        precio1 = precio_base * (1 - item_disc / 100)
+        total_channel = channel_disc + deal_reg_disc
+        precio_final = precio1 * (1 - total_channel / 100)
+        subtotal = precio_final * cantidad
+
+        cotizacion.append({
+            "Producto": nombre_personalizado,
+            "Cantidad": cantidad,
+            "Precio Base": precio_base,
+            "Item Disc. %": item_disc,
+            "Channel + Deal Disc. %": total_channel,
+            "Precio Final Unitario": round(precio_final, 2),
+            "Subtotal": round(subtotal, 2)
+        })
+
+        productos_para_tabla_secundaria.append({
+            "Producto": nombre_personalizado,
+            "Cantidad": cantidad,
+            "Precio Unitario de Lista": precio_base
+        })
+        continue
     df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod]
     cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1, step=1)
 
@@ -425,3 +443,4 @@ if 'cotizacion_id' in locals():
                 file_name=pdf_output_path,
                 mime="application/pdf"
             )
+       )
