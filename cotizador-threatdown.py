@@ -152,7 +152,9 @@ def cargar_datos(file_path="precios_threatdown.xlsx"):
         return pd.DataFrame()
 
 # --- Inicializar DB y Cargar Datos ---
+
 try:
+    inicializar_db()  # ✅ asegúrate de que esta línea esté ahí
 except Exception as e:
     st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
     st.exception(e) # Muestra el traceback completo en la app
