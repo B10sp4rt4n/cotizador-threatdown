@@ -46,37 +46,6 @@ def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
 
 # =================== Inicializar base de datos ===================
 def inicializar_db():
-
-# Reforzar que la tabla 'clientes' exista antes de continuar
-try:
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            apellido_paterno TEXT,
-            apellido_materno TEXT,
-            empresa TEXT,
-            correo TEXT,
-            telefono TEXT,
-            rfc TEXT,
-            calle TEXT,
-            numero_exterior TEXT,
-            numero_interior TEXT,
-            codigo_postal TEXT,
-            municipio TEXT,
-            ciudad TEXT,
-            estado TEXT,
-            notas TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-except Exception as e:
-    st.error("❌ Error al garantizar existencia de la tabla 'clientes'.")
-    st.stop()
-
     print("[LOG] Inicializando base de datos si no existe")
     conn = conectar_db()
     cursor = conn.cursor()
@@ -398,23 +367,6 @@ if menu == "Clientes":
 
 st.sidebar.header("Datos de la cotización")
 
-# Asegurar inicialización de base de datos antes de cualquier consulta
-inicializar_db()
-
-# Cargar empresas registradas de forma segura
-try:
-    conn = conectar_db()
-    df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
-    conn.close()
-except Exception as e:
-    st.error("❌ Error al cargar clientes: asegúrate de haber inicializado la base de datos y que existan datos.")
-    st.stop()
-
-if df_clientes.empty:
-    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
-    st.stop()
-
-
 # =======================
 # Cargar empresas registradas
 # =======================
@@ -714,9 +666,6 @@ if 'cotizacion_id' in locals():
                 mime="application/pdf"
             )
 
-# ... (resto del código sigue igual 1)
-
-# ... (resto del código sigue igual)
-
 
 DB_PATH = "crm_cotizaciones.sqlite"
+
