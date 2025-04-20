@@ -152,9 +152,8 @@ def cargar_datos(file_path="precios_threatdown.xlsx"):
         return pd.DataFrame()
 
 # --- Inicializar DB y Cargar Datos ---
-
 try:
-    inicializar_db()  # ✅ asegúrate de que esta línea esté ahí
+    pass
 except Exception as e:
     st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
     st.exception(e) # Muestra el traceback completo en la app
@@ -176,6 +175,7 @@ if 'manual_products' not in st.session_state:
 
 # --- Inicializar DB y Cargar Datos ---
 try:
+    pass
 except Exception as e:
     st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
     st.exception(e) # Muestra el traceback completo en la app
@@ -783,3 +783,4 @@ if cotizacion_id_seleccionada:
             st.error(f"❌ Error inesperado al generar PDF: {e}")
             import traceback
             st.error(traceback.format_exc()) # Imprime más detalles del error
+
