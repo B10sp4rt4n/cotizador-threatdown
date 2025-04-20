@@ -367,6 +367,23 @@ if menu == "Clientes":
 
 st.sidebar.header("Datos de la cotización")
 
+# Asegurar inicialización de base de datos antes de cualquier consulta
+inicializar_db()
+
+# Cargar empresas registradas de forma segura
+try:
+    conn = conectar_db()
+    df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+    conn.close()
+except Exception as e:
+    st.error("❌ Error al cargar clientes: asegúrate de haber inicializado la base de datos y que existan datos.")
+    st.stop()
+
+if df_clientes.empty:
+    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
+    st.stop()
+
+
 # =======================
 # Cargar empresas registradas
 # =======================
@@ -672,4 +689,3 @@ if 'cotizacion_id' in locals():
 
 
 DB_PATH = "crm_cotizaciones.sqlite"
-
