@@ -119,6 +119,18 @@ def cargar_datos():
 
 df_precios = cargar_datos()
 
+
+# Agregar producto personalizado como opción inicial
+producto_personalizado_placeholder = {
+    "Product Title": "Producto personalizado (opcional)",
+    "MSRP USD": 0.0,
+    "Tier Min": 1,
+    "Tier Max": 9999,
+    "Term (Month)": termino_seleccionado
+}
+df_precios = pd.concat([df_precios, pd.DataFrame([producto_personalizado_placeholder])], ignore_index=True)
+
+
 st.title("Cotizador ThreatDown con CRM")
 
 menu = st.sidebar.selectbox("Secciones", ["Cotizaciones", "Clientes"])
