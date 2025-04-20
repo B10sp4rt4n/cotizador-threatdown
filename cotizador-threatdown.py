@@ -1,116 +1,20 @@
-# Cotizador ThreatDown V17 con autenticación y roles de usuario
 
 import streamlit as st
-import sqlite3
 import pandas as pd
-import hashlib
+import sqlite3
 import os
 from datetime import date
-from fpdf import FPDF
+from clientes_module import vista_clientes
 
-DB_PATH = "crm_cotizaciones.sqlite"
+# Crear ruta segura para base de datos en entorno escribible
+DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
-# =================== Funciones de autenticación ===================
-def conectar_db():
-    return sqlite3.connect(DB_PATH)
-
-def hash_password(password):
-    hashed = hashlib.sha256(password.encode()).hexdigest()
-    print(f"[LOG] Contraseña hasheada: {hashed}")
-    return hashed
-
-def autenticar_usuario(correo, contrasena):
-    print(f"[LOG] Intentando autenticar usuario: {correo}")
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        SELECT id, nombre, tipo_usuario, admin_id FROM usuarios
-        WHERE correo = ? AND contraseña = ?
-    """, (correo, hash_password(contrasena)))
-    usuario = cursor.fetchone()
-    conn.close()
-    print(f"[LOG] Resultado de autenticación: {usuario}")
-    return usuario
-
-def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
-    print(f"[LOG] Creando usuario: {nombre}, tipo: {tipo_usuario}, admin_id: {admin_id}")
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO usuarios (nombre, correo, contraseña, tipo_usuario, admin_id)
-        VALUES (?, ?, ?, ?, ?)
-    """, (nombre, correo, hash_password(contrasena), tipo_usuario, admin_id))
-    conn.commit()
-    conn.close()
-    print("[LOG] Usuario creado exitosamente")
-
-# =================== Inicializar base de datos ===================
+# ========================
+# Crear base y tablas si no existen
+# ========================
 def inicializar_db():
-# Agregar este bloque justo después de `inicializar_db()` como una llamada en el flujo principal
-lineas = contenido.splitlines()
-nuevas_lineas = []
-insertado = False
-
-for i, linea in enumerate(lineas):
-    nuevas_lineas.append(linea)
-    if not insertado and "inicializar_db()" in linea:
-        nuevas_lineas.append(bloque_refuerzo_limpio)
-        insertado = True
-
-# Guardar archivo corregido sin errores de indentación
-with open(archivo_reparado2, "w", encoding="utf-8") as f:
-    f.write("\n".join(nuevas_lineas))
-
-# Comprimir como ZIP
-zip_reparado2 = Path("/mnt/data/cotizador-threatdown_reparado2.zip")
-with zipfile.ZipFile(zip_reparado2, "w") as zipf:
-    zipf.write(archivo_reparado2, arcname="cotizador-threatdown_reparado2.py")
-
-zip_reparado2.name
-# Reforzar que la tabla 'clientes' exista antes de continuar
-try:
-    conn = conectar_db()
+    conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            apellido_paterno TEXT,
-            apellido_materno TEXT,
-            empresa TEXT,
-            correo TEXT,
-            telefono TEXT,
-            rfc TEXT,
-            calle TEXT,
-            numero_exterior TEXT,
-            numero_interior TEXT,
-            codigo_postal TEXT,
-            municipio TEXT,
-            ciudad TEXT,
-            estado TEXT,
-            notas TEXT
-        )
-    """)
-    conn.commit()
-    conn.close()
-except Exception as e:
-    st.error("❌ Error al garantizar existencia de la tabla 'clientes'.")
-    st.stop()
-
-    print("[LOG] Inicializando base de datos si no existe")
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS usuarios (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            correo TEXT UNIQUE,
-            contraseña TEXT,
-            tipo_usuario TEXT,
-            admin_id INTEGER,
-            FOREIGN KEY (admin_id) REFERENCES usuarios(id)
-        )
-    """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -122,10 +26,7 @@ except Exception as e:
             total_venta REAL,
             total_costo REAL,
             utilidad REAL,
-            margen REAL,
-            vigencia TEXT,
-            condiciones_comerciales TEXT,
-            usuario_id INTEGER
+            margen REAL
         )
     """)
     cursor.execute("""
@@ -141,141 +42,32 @@ except Exception as e:
             FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
         )
     """)
+    
+    # Verificar y agregar columnas nuevas si no existen
+    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
+    if "vigencia" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
+    if "condiciones_comerciales" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT;")
+
     conn.commit()
     conn.close()
-    print("[LOG] Base de datos lista")
 
-# Ejecutar inicialización antes de cualquier uso de tablas
-inicializar_db()
+def conectar_db():
+    return sqlite3.connect(DB_PATH)
 
-# =================== Verificar sesión o mostrar login ===================
-def actualizar_contrasena(correo, nueva_contrasena):
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("UPDATE usuarios SET contraseña = ? WHERE correo = ?", (hash_password(nueva_contrasena), correo))
-    conn.commit()
-    conn.close()
-    print(f"[LOG] Contraseña actualizada para {correo}")
-if "usuario" not in st.session_state:
-    # Mostrar login si no hay usuarios creados
-    conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT COUNT(*) FROM usuarios")
-    usuario_count = cursor.fetchone()[0]
-    conn.close()
-
-    if usuario_count == 0:
-        st.title("🆕 Registro inicial de Superadministrador")
-        with st.form("registro_inicial"):
-            nombre = st.text_input("Nombre completo")
-            correo = st.text_input("Correo")
-            contrasena = st.text_input("Contraseña", type="password")
-            confirmar = st.text_input("Confirmar contraseña", type="password")
-            submitted = st.form_submit_button("Crear Superadmin")
-            if submitted:
-                if contrasena == confirmar:
-                    crear_usuario(nombre, correo, contrasena, "superadmin", None)
-                    st.success("✅ Usuario creado. Reinicia la app e inicia sesión.")
-                else:
-                    st.error("❌ Las contraseñas no coinciden.")
-        st.stop()
-    else:
-        st.title("🔐 Iniciar sesión")
-        recuperar = st.checkbox("¿Olvidaste tu contraseña?")
-        if recuperar:
-            with st.form("recuperar_password"):
-                correo_reset = st.text_input("Correo registrado")
-                nueva = st.text_input("Nueva contraseña", type="password")
-                confirmar = st.text_input("Confirmar contraseña", type="password")
-                submitted_reset = st.form_submit_button("Restablecer")
-                if submitted_reset:
-                    if nueva != confirmar:
-                        st.error("❌ Las contraseñas no coinciden.")
-                    else:
-                        conn = conectar_db()
-                        cursor = conn.cursor()
-                        cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (correo_reset,))
-                        existe = cursor.fetchone()
-                        conn.close()
-                        if existe:
-                            actualizar_contrasena(correo_reset, nueva)
-                            st.success("✅ Contraseña actualizada. Ahora puedes iniciar sesión.")
-                        else:
-                            st.error("❌ Correo no encontrado.")
-        with st.form("login_form"):
-            correo = st.text_input("Correo")
-            contrasena = st.text_input("Contraseña", type="password")
-            submitted = st.form_submit_button("Ingresar")
-            if submitted:
-                usuario = autenticar_usuario(correo, contrasena)
-                if usuario:
-                    st.session_state.usuario = {
-                        "id": usuario[0],
-                        "nombre": usuario[1],
-                        "tipo": usuario[2],
-                        "admin_id": usuario[3]
-                    }
-                    st.rerun()
-                else:
-                    st.error("❌ Credenciales incorrectas.")
-        st.stop()
-
-def ver_historial(usuario):
-    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
-    conn = conectar_db()
-    if usuario['tipo'] == 'superadmin':
-        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    elif usuario['tipo'] == 'admin':
-        query = f"""
-            SELECT * FROM cotizaciones
-            WHERE usuario_id IN (
-                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
-            ) ORDER BY fecha DESC
-        """
-        df = pd.read_sql_query(query, conn)
-    else:
-        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
-        df = pd.read_sql_query(query, conn)
-    conn.close()
-    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
-    return df
-
-# =================== Mensaje de bienvenida ===================
-if "usuario" in st.session_state:
-    st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
-    st.markdown(f"📅 Fecha actual: **{date.today().strftime('%Y-%m-%d')}**")
-
-    # Panel resumen
-    st.markdown("---")
-    st.subheader("📊 Mi resumen de cotizaciones")
-    resumen_df = ver_historial(st.session_state.usuario)
-    cotizaciones_hoy = resumen_df[resumen_df['fecha'] == date.today().strftime('%Y-%m-%d')]
-    cotizaciones_mes = resumen_df[resumen_df['fecha'].str.startswith(date.today().strftime('%Y-%m'))]
-
-    col1, col2, col3 = st.columns(3)
-    col1.metric("Hoy", len(cotizaciones_hoy))
-    col2.metric("Este mes", len(cotizaciones_mes))
-    col3.metric("💰 Total Mes (USD)", f"${cotizaciones_mes['total_venta'].sum():,.2f}")
-
-
-
-# =================== Funciones de cotizaciones ===================
 def guardar_cotizacion(datos, productos_venta, productos_costo):
-    print(f"[LOG] Guardando cotización para: {datos['cliente']} | Responsable: {datos['responsable']}")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, vigencia, condiciones_comerciales, usuario_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, vigencia, condiciones_comerciales)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
         datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
         datos["responsable"], datos["total_venta"], datos["total_costo"],
-        datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"], datos["usuario_id"]
+        datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"]
     ))
     cotizacion_id = cursor.lastrowid
-
-    print(f"[LOG] Cotización ID generada: {cotizacion_id}")
 
     for p in productos_venta:
         cursor.execute("""
@@ -295,110 +87,28 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
             p["Subtotal"], p["Item Disc. %"]
         ))
 
+    
+    # Verificar y agregar columnas nuevas si no existen
+    columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
+    if "vigencia" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
+    if "condiciones_comerciales" not in columnas:
+        cursor.execute("ALTER TABLE cotizaciones ADD COLUMN condiciones_comerciales TEXT;")
+
     conn.commit()
     conn.close()
-    print("[LOG] Cotización guardada exitosamente")
     return cotizacion_id
 
-
-
-# ... (resto del código sigue igual)
-
-
-
-
-# ... (resto del código sigue igual)
-
-
-DB_PATH = "crm_cotizaciones.sqlite"
-
-def agregar_cliente(datos):
+def ver_historial():
     conn = conectar_db()
-    cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO clientes (
-            nombre, apellido_paterno, apellido_materno, empresa, correo, telefono,
-            rfc, calle, numero_exterior, numero_interior, codigo_postal,
-            municipio, ciudad, estado, notas
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datos["nombre"], datos["apellido_paterno"], datos["apellido_materno"], datos["empresa"],
-        datos["correo"], datos["telefono"], datos["rfc"], datos["calle"],
-        datos["numero_exterior"], datos["numero_interior"], datos["codigo_postal"],
-        datos["municipio"], datos["ciudad"], datos["estado"], datos["notas"]
-    ))
-    conn.commit()
-    conn.close()
-
-def mostrar_clientes():
-    conn = conectar_db()
-    df = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+    df = pd.read_sql_query("SELECT * FROM cotizaciones ORDER BY fecha DESC", conn)
     conn.close()
     return df
 
-def vista_clientes():
-    st.title("📇 Gestión de Clientes")
+# Inicializar base si es primera vez
+inicializar_db()
 
-    with st.expander("➕ Agregar nuevo cliente"):
-        with st.form("form_nuevo_cliente"):
-            col1, col2, col3 = st.columns(3)
-            nombre = col1.text_input("Nombre")
-            apellido_paterno = col2.text_input("Apellido Paterno")
-            apellido_materno = col3.text_input("Apellido Materno")
-            empresa = st.text_input("Empresa")
-            correo = st.text_input("Correo electrónico")
-            telefono = st.text_input("Teléfono")
-
-            st.markdown("**Domicilio Fiscal**")
-            rfc = st.text_input("RFC")
-            calle = st.text_input("Calle")
-            numero_exterior = st.text_input("Número Exterior")
-            numero_interior = st.text_input("Número Interior")
-            codigo_postal = st.text_input("Código Postal")
-            municipio = st.text_input("Municipio")
-            ciudad = st.text_input("Ciudad")
-            estado = st.text_input("Estado")
-            notas = st.text_area("Notas", height=100)
-
-            submitted = st.form_submit_button("Guardar cliente")
-            if submitted:
-                datos = {
-                    "nombre": nombre,
-                    "apellido_paterno": apellido_paterno,
-                    "apellido_materno": apellido_materno,
-                    "empresa": empresa,
-                    "correo": correo,
-                    "telefono": telefono,
-                    "rfc": rfc,
-                    "calle": calle,
-                    "numero_exterior": numero_exterior,
-                    "numero_interior": numero_interior,
-                    "codigo_postal": codigo_postal,
-                    "municipio": municipio,
-                    "ciudad": ciudad,
-                    "estado": estado,
-                    "notas": notas
-                }
-                agregar_cliente(datos)
-                st.success("✅ Cliente guardado con éxito")
-
-    st.subheader("📋 Lista de Clientes")
-    df = mostrar_clientes()
-    st.dataframe(df)
-
-import streamlit as st
-import pandas as pd
-import sqlite3
-import os
-from datetime import date
-
-# Crear ruta segura para base de datos en entorno escribible
-DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
-
-# ========================
-# Crear base y tablas si no existen
-# ========================
+@st.cache_data
 def cargar_datos():
     df = pd.read_excel("precios_threatdown.xlsx")
     df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
@@ -417,46 +127,8 @@ if menu == "Clientes":
 
 
 st.sidebar.header("Datos de la cotización")
-
-# Asegurar inicialización de base de datos antes de cualquier consulta
-inicializar_db()
-
-# Cargar empresas registradas de forma segura
-try:
-    conn = conectar_db()
-    df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
-    conn.close()
-except Exception as e:
-    st.error("❌ Error al cargar clientes: asegúrate de haber inicializado la base de datos y que existan datos.")
-    st.stop()
-
-if df_clientes.empty:
-    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
-    st.stop()
-
-
-# =======================
-# Cargar empresas registradas
-# =======================
-conn = conectar_db()
-df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
-conn.close()
-
-if df_clientes.empty:
-    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
-    st.stop()
-
-empresa_seleccionada = st.sidebar.selectbox("Selecciona la empresa cliente", df_clientes["empresa"].unique())
-cliente_row = df_clientes[df_clientes["empresa"] == empresa_seleccionada].iloc[0]
-cliente = empresa_seleccionada
-contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
-
-df_clientes["display"] = df_clientes["nombre"] + " " + df_clientes["apellido_paterno"] + " " + df_clientes["apellido_materno"] + " - " + df_clientes["empresa"]
-cliente_seleccionado = st.sidebar.selectbox("Selecciona un cliente", df_clientes["display"])
-cliente_row = df_clientes[df_clientes["display"] == cliente_seleccionado].iloc[0]
-cliente = cliente_row["empresa"]
-contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
-
+cliente = st.sidebar.text_input("Cliente")
+contacto = st.sidebar.text_input("Nombre de contacto")
 propuesta = st.sidebar.text_input("Nombre de la propuesta")
 fecha = st.sidebar.date_input("Fecha", value=date.today())
 responsable = st.sidebar.text_input("Responsable / Vendedor")
@@ -733,7 +405,3 @@ if 'cotizacion_id' in locals():
                 file_name=pdf_output_path,
                 mime="application/pdf"
             )
-
-
-
-DB_PATH = "crm_cotizaciones.sqlite"
