@@ -8,6 +8,33 @@ DB_PATH = "crm_cotizaciones.sqlite"
 def conectar_db():
     return sqlite3.connect(DB_PATH)
 
+def crear_tabla_clientes():
+    conn = sqlite3.connect(DB_PATH)
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            apellido_paterno TEXT,
+            apellido_materno TEXT,
+            empresa TEXT,
+            correo TEXT,
+            telefono TEXT,
+            rfc TEXT,
+            calle TEXT,
+            numero_exterior TEXT,
+            numero_interior TEXT,
+            codigo_postal TEXT,
+            municipio TEXT,
+            ciudad TEXT,
+            estado TEXT,
+            notas TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
 def agregar_cliente(datos):
     conn = conectar_db()
     cursor = conn.cursor()
