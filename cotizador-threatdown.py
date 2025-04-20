@@ -344,8 +344,8 @@ class CotizacionPDFConLogo(FPDF):
         self.cell(60, 8, "Producto", 1)
         self.cell(20, 8, "Cantidad", 1, align="C")
         self.cell(30, 8, "P. Unitario", 1, align="R")
-        self.cell(30, 8, "P. Total Lista", 1, align="R")
-        self.cell(30, 8, "Descuento %", 1, align="R")
+        self.cell(30, 8, "P. Lista", 1, align="R")
+        self.cell(30, 8, "Desc %", 1, align="R")
         self.cell(30, 8, "Total", 1, ln=True, align="R")
 
         self.set_font("Helvetica", "", 10)
