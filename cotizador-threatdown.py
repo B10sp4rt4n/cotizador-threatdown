@@ -15,21 +15,107 @@ DB_PATH = os.path.join(APP_DIR, "crm_cotizaciones.sqlite")
 
 
 # --- Funciones de Base de Datos ---
-def inicializar_db():
-    # ... (código de inicializar_db como lo tenías) ...
-    pass # Placeholder si copias solo este fragmento
-
 def conectar_db():
-    # ... (código de conectar_db) ...
-    pass # Placeholder
+    return sqlite3.connect(DB_PATH)
 
-def guardar_cotizacion(datos_generales, productos_venta_final, productos_costo_final):
-     # ... (código de guardar_cotizacion) ...
-     pass # Placeholder
+
+def inicializar_db():
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS cotizaciones (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cliente TEXT,
+            contacto TEXT,
+            propuesta TEXT,
+            fecha TEXT,
+            responsable TEXT,
+            total_venta REAL,
+            total_costo REAL,
+            utilidad REAL,
+            margen REAL,
+            vigencia TEXT,
+            condiciones_comerciales TEXT
+        )
+    """)
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS detalle_productos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            cotizacion_id INTEGER,
+            producto TEXT,
+            cantidad INTEGER,
+            precio_unitario REAL,
+            descuento_aplicado REAL,
+            precio_total REAL,
+            tipo_origen TEXT,
+            FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
+        )
+    """)
+    conn.commit()
+    conn.close()
+
+
+def guardar_cotizacion(datos_generales, productos_venta, productos_costo):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta,
+                                  total_costo, utilidad, margen, vigencia, condiciones_comerciales)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datos_generales["cliente"],
+        datos_generales["contacto"],
+        datos_generales["propuesta"],
+        datos_generales["fecha"],
+        datos_generales["responsable"],
+        datos_generales["total_venta"],
+        datos_generales["total_costo"],
+        datos_generales["utilidad"],
+        datos_generales["margen"],
+        datos_generales["vigencia"],
+        datos_generales["condiciones_comerciales"]
+    ))
+    cotizacion_id = cursor.lastrowid
+    for p in productos_venta:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
+                                           precio_unitario, descuento_aplicado,
+                                           precio_total, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'venta')
+        """, (
+            cotizacion_id,
+            p["Producto"],
+            p["Cantidad"],
+            p["Precio Unitario de Lista"],
+            p["Descuento %"],
+            p["Precio Total con Descuento"]
+        ))
+    for p in productos_costo:
+        cursor.execute("""
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
+                                           precio_unitario, descuento_aplicado,
+                                           precio_total, tipo_origen)
+            VALUES (?, ?, ?, ?, ?, ?, 'costo')
+        """, (
+            cotizacion_id,
+            p["Producto"],
+            p["Cantidad"],
+            p["Precio Base"],
+            p["Item Disc. %"],
+            p["Subtotal"]
+        ))
+    conn.commit()
+    conn.close()
+
 
 def ver_historial():
-     # ... (código de ver_historial) ...
-     pass # Placeholder
+    conn = conectar_db()
+    df = pd.read_sql_query("""
+        SELECT id, propuesta, cliente, fecha, total_venta, total_costo, utilidad, margen
+        FROM cotizaciones ORDER BY fecha DESC
+    """, conn)
+    conn.close()
+    return df
 
 
 # --- Carga de Datos de Precios --- <<<< ¡¡¡AÑADIR ESTO DE NUEVO!!!
