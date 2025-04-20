@@ -593,6 +593,3 @@ elif menu == "Historial":
 # --- Fallback for unknown menu option ---
 # ... (Keep Fallback code) ...
 
-# --- Fallback for unknown menu option ---
-else:
-    st.error("Opción de menú no reconocida.")
