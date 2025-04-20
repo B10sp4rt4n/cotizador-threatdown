@@ -158,7 +158,7 @@ cotizacion = []
 productos_para_tabla_secundaria = []
 
 for prod in seleccion:
-if prod == "Producto personalizado (opcional)":
+    if prod == "Producto personalizado (opcional)":
         st.warning("⚠️ Has seleccionado 'Producto personalizado'. Por favor completa los siguientes datos.")
         nombre_personalizado = st.text_input("Nombre del producto personalizado", key=f"nombre_{prod}")
         descripcion = st.text_area("Descripción", key=f"descripcion_{prod}")
@@ -186,6 +186,9 @@ if prod == "Producto personalizado (opcional)":
             "Producto": nombre_personalizado,
             "Cantidad": cantidad,
             "Precio Unitario de Lista": precio_base
+        })
+        continue
+
         })
         continue
     df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod]
