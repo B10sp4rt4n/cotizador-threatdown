@@ -320,6 +320,7 @@ else:
 
 conn.close()
 
+from fpdf import FPDF
 
 class CotizacionPDFConLogo(FPDF):
     def header(self):
