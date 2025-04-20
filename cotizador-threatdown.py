@@ -4,7 +4,7 @@ import sqlite3
 import os
 from datetime import date
 # Asumiendo que clientes_module.py existe y funciona
-# from clientes_module import vista_clientes
+from clientes_module import vista_clientes
 from fpdf import FPDF
 import uuid # Para generar IDs únicos para productos manuales
 
@@ -199,7 +199,7 @@ menu = st.sidebar.selectbox("Secciones", ["Cotizaciones", "Clientes"])
 if menu == "Clientes":
     # Comenta o descomenta según tengas el módulo
     # vista_clientes()
-    st.info("Funcionalidad de Clientes (comentada en el código).")
+    vista_clientes()
     st.stop()
 
 # --- Entradas Generales de la Cotización (Sidebar) ---
@@ -783,4 +783,5 @@ if cotizacion_id_seleccionada:
             st.error(f"❌ Error inesperado al generar PDF: {e}")
             import traceback
             st.error(traceback.format_exc()) # Imprime más detalles del error
+
 
