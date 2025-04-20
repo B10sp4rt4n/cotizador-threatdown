@@ -167,6 +167,8 @@ df_precios = cargar_datos() # <--- Llamada aquí
 # --- Inicializar Session State para Productos Manuales ---
 if 'manual_products' not in st.session_state:
     st.session_state.manual_products = []
+if 'cantidades_productos' not in st.session_state:
+    st.session_state.cantidades_productos = {}
 
 # ... (El resto de tu código de Streamlit: UI, lógica, etc.) ...
 
@@ -309,6 +311,8 @@ productos_venta_base = [] # Lista base para luego aplicar descuento de venta
 
 # Procesar productos seleccionados del Excel
 for prod_nombre in seleccion_excel:
+    cantidad = st.number_input(f"Cantidad para '{prod_nombre}':", min_value=1, step=1, value=st.session_state.cantidades_productos.get(prod_nombre, 1), key=f"qty_{prod_nombre}")
+    st.session_state.cantidades_productos[prod_nombre] = cantidad
     df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod_nombre]
     if df_producto.empty:
         st.warning(f"No se encontró el producto '{prod_nombre}' para el plazo {termino_seleccionado}. Omitiendo.")
@@ -782,5 +786,4 @@ if cotizacion_id_seleccionada:
             st.error(f"❌ Error inesperado al generar PDF: {e}")
             import traceback
             st.error(traceback.format_exc()) # Imprime más detalles del error
-
 
