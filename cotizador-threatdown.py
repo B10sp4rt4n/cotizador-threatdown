@@ -782,3 +782,4 @@ if cotizacion_id_seleccionada:
             st.error(f"❌ Error inesperado al generar PDF: {e}")
             import traceback
             st.error(traceback.format_exc()) # Imprime más detalles del error
+
