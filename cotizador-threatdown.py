@@ -98,6 +98,37 @@ def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
 
+    # Tabla de empresas
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS empresas (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            rfc TEXT,
+            calle TEXT,
+            numero_exterior TEXT,
+            numero_interior TEXT,
+            codigo_postal TEXT,
+            municipio TEXT,
+            ciudad TEXT,
+            estado TEXT,
+            notas TEXT
+        )
+    """)
+
+    # Tabla de contactos
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS contactos (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            apellido_paterno TEXT,
+            apellido_materno TEXT,
+            correo TEXT,
+            telefono TEXT,
+            empresa_id INTEGER NOT NULL,
+            FOREIGN KEY (empresa_id) REFERENCES empresas(id)
+        )
+    """)
+
     # Tabla de cotizaciones
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
@@ -114,7 +145,7 @@ def inicializar_db():
         )
     """)
 
-    # Tabla de detalle de productos
+    # Tabla de detalle_productos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detalle_productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -129,29 +160,7 @@ def inicializar_db():
         )
     """)
 
-    # 🆕 Tabla de clientes
-    cursor.execute("""
-        CREATE TABLE IF NOT EXISTS clientes (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            nombre TEXT,
-            apellido_paterno TEXT,
-            apellido_materno TEXT,
-            empresa TEXT,
-            correo TEXT,
-            telefono TEXT,
-            rfc TEXT,
-            calle TEXT,
-            numero_exterior TEXT,
-            numero_interior TEXT,
-            codigo_postal TEXT,
-            municipio TEXT,
-            ciudad TEXT,
-            estado TEXT,
-            notas TEXT
-        )
-    """)
-
-    # Verificar y agregar columnas nuevas si no existen
+    # Agregar columnas nuevas si no existen
     columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
     if "vigencia" not in columnas:
         cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
@@ -160,6 +169,7 @@ def inicializar_db():
 
     conn.commit()
     conn.close()
+
 
 
 def conectar_db():
