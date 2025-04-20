@@ -315,7 +315,6 @@ for prod_nombre in seleccion_excel:
         continue
 
     # Usar un expander para los inputs de cantidad/descuentos de productos Excel
-    with st.expander(f"Detalles para: {prod_nombre}"):
         cantidad = st.number_input(f"Cantidad:", min_value=1, value=1, step=1, key=f"qty_{prod_nombre}")
 
         # Encontrar el rango de precios correcto
@@ -783,5 +782,4 @@ if cotizacion_id_seleccionada:
             st.error(f"❌ Error inesperado al generar PDF: {e}")
             import traceback
             st.error(traceback.format_exc()) # Imprime más detalles del error
-
 
