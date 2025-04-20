@@ -152,24 +152,16 @@ def cargar_datos(file_path="precios_threatdown.xlsx"):
         return pd.DataFrame()
 
 # --- Inicializar DB y Cargar Datos ---
-st.write(f"DEBUG: Directorio App: {APP_DIR}") # Mensaje de depuración
-st.write(f"DEBUG: Ruta DB: {DB_PATH}")
 try:
-    st.write("DEBUG: Intentando inicializar DB...")
-    inicializar_db()
-    st.write("DEBUG: DB inicializada.")
 except Exception as e:
     st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
     st.exception(e) # Muestra el traceback completo en la app
     st.stop() # Detiene la ejecución si la DB falla
 
-st.write("DEBUG: Intentando cargar datos de precios...")
 # --- LLAMADA ÚNICA Y CORRECTA ---
 df_precios = cargar_datos() # <--- Llamada aquí
-st.write(f"DEBUG: Datos cargados. df_precios es None? {df_precios is None}. Filas: {len(df_precios) if df_precios is not None else 'N/A'}")
 
 # --- QUITAR LA LLAMADA DUPLICADA ---
-# df_precios = cargar_datos() # <<<--- ELIMINA ESTA LÍNEA
 
 # --- Inicializar Session State para Productos Manuales ---
 if 'manual_products' not in st.session_state:
@@ -178,22 +170,18 @@ if 'manual_products' not in st.session_state:
 # ... (El resto de tu código de Streamlit: UI, lógica, etc.) ...
 
 
-# --- El resto de tu código (incluyendo la llamada a inicializar_db() al principio) ---
 # ... (código anterior) ...
 
 # --- Inicializar DB y Cargar Datos ---
 try:
-    inicializar_db()
 except Exception as e:
     st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
     st.exception(e) # Muestra el traceback completo en la app
     st.stop() # Detiene la ejecución si la DB falla
 
-df_precios = cargar_datos()
 
 # ... (resto del código) ...
 
-df_precios = cargar_datos()
 
 # --- Inicializar Session State para Productos Manuales ---
 if 'manual_products' not in st.session_state:
