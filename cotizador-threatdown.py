@@ -46,7 +46,27 @@ def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
 
 # =================== Inicializar base de datos ===================
 def inicializar_db():
+# Agregar este bloque justo después de `inicializar_db()` como una llamada en el flujo principal
+lineas = contenido.splitlines()
+nuevas_lineas = []
+insertado = False
 
+for i, linea in enumerate(lineas):
+    nuevas_lineas.append(linea)
+    if not insertado and "inicializar_db()" in linea:
+        nuevas_lineas.append(bloque_refuerzo_limpio)
+        insertado = True
+
+# Guardar archivo corregido sin errores de indentación
+with open(archivo_reparado2, "w", encoding="utf-8") as f:
+    f.write("\n".join(nuevas_lineas))
+
+# Comprimir como ZIP
+zip_reparado2 = Path("/mnt/data/cotizador-threatdown_reparado2.zip")
+with zipfile.ZipFile(zip_reparado2, "w") as zipf:
+    zipf.write(archivo_reparado2, arcname="cotizador-threatdown_reparado2.py")
+
+zip_reparado2.name
 # Reforzar que la tabla 'clientes' exista antes de continuar
 try:
     conn = conectar_db()
