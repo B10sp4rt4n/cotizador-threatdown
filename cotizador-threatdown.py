@@ -1,29 +1,96 @@
+# Cotizador ThreatDown V17 con autenticación y roles de usuario
+
 import streamlit as st
-import pandas as pd
 import sqlite3
+import pandas as pd
+import hashlib
 import os
 from datetime import date
-# Asumiendo que clientes_module.py existe y funciona
-from clientes_module import vista_clientes
 from fpdf import FPDF
-import uuid # Para generar IDs únicos para productos manuales
 
-st.set_page_config(page_title="Cotizador ThreatDown", layout="wide")
+DB_PATH = "crm_cotizaciones.sqlite"
 
-# --- Configuración Inicial ---
-# Crear ruta segura para base de datos en entorno escribible
-APP_DIR = os.path.dirname(os.path.abspath(__file__)) if "__file__" in locals() else os.getcwd()
-DB_PATH = os.path.join(APP_DIR, "crm_cotizaciones.sqlite")
-
-
-# --- Funciones de Base de Datos ---
+# =================== Funciones de autenticación ===================
 def conectar_db():
     return sqlite3.connect(DB_PATH)
 
+def hash_password(password):
+    hashed = hashlib.sha256(password.encode()).hexdigest()
+    print(f"[LOG] Contraseña hasheada: {hashed}")
+    return hashed
 
-def inicializar_db():
+def autenticar_usuario(correo, contrasena):
+    print(f"[LOG] Intentando autenticar usuario: {correo}")
     conn = conectar_db()
     cursor = conn.cursor()
+    cursor.execute("""
+        SELECT id, nombre, tipo_usuario, admin_id FROM usuarios
+        WHERE correo = ? AND contraseña = ?
+    """, (correo, hash_password(contrasena)))
+    usuario = cursor.fetchone()
+    conn.close()
+    print(f"[LOG] Resultado de autenticación: {usuario}")
+    return usuario
+
+def crear_usuario(nombre, correo, contrasena, tipo_usuario, admin_id):
+    print(f"[LOG] Creando usuario: {nombre}, tipo: {tipo_usuario}, admin_id: {admin_id}")
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO usuarios (nombre, correo, contraseña, tipo_usuario, admin_id)
+        VALUES (?, ?, ?, ?, ?)
+    """, (nombre, correo, hash_password(contrasena), tipo_usuario, admin_id))
+    conn.commit()
+    conn.close()
+    print("[LOG] Usuario creado exitosamente")
+
+# =================== Inicializar base de datos ===================
+def inicializar_db():
+
+# Reforzar que la tabla 'clientes' exista antes de continuar
+try:
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            apellido_paterno TEXT,
+            apellido_materno TEXT,
+            empresa TEXT,
+            correo TEXT,
+            telefono TEXT,
+            rfc TEXT,
+            calle TEXT,
+            numero_exterior TEXT,
+            numero_interior TEXT,
+            codigo_postal TEXT,
+            municipio TEXT,
+            ciudad TEXT,
+            estado TEXT,
+            notas TEXT
+        )
+    """)
+    conn.commit()
+    conn.close()
+except Exception as e:
+    st.error("❌ Error al garantizar existencia de la tabla 'clientes'.")
+    st.stop()
+
+    print("[LOG] Inicializando base de datos si no existe")
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS usuarios (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            correo TEXT UNIQUE,
+            contraseña TEXT,
+            tipo_usuario TEXT,
+            admin_id INTEGER,
+            FOREIGN KEY (admin_id) REFERENCES usuarios(id)
+        )
+    """)
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -37,7 +104,8 @@ def inicializar_db():
             utilidad REAL,
             margen REAL,
             vigencia TEXT,
-            condiciones_comerciales TEXT
+            condiciones_comerciales TEXT,
+            usuario_id INTEGER
         )
     """)
     cursor.execute("""
@@ -47,739 +115,608 @@ def inicializar_db():
             producto TEXT,
             cantidad INTEGER,
             precio_unitario REAL,
-            descuento_aplicado REAL,
             precio_total REAL,
+            descuento_aplicado REAL,
             tipo_origen TEXT,
             FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
         )
     """)
     conn.commit()
     conn.close()
+    print("[LOG] Base de datos lista")
+
+# Ejecutar inicialización antes de cualquier uso de tablas
+inicializar_db()
+
+# =================== Verificar sesión o mostrar login ===================
+def actualizar_contrasena(correo, nueva_contrasena):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("UPDATE usuarios SET contraseña = ? WHERE correo = ?", (hash_password(nueva_contrasena), correo))
+    conn.commit()
+    conn.close()
+    print(f"[LOG] Contraseña actualizada para {correo}")
+if "usuario" not in st.session_state:
+    # Mostrar login si no hay usuarios creados
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT COUNT(*) FROM usuarios")
+    usuario_count = cursor.fetchone()[0]
+    conn.close()
+
+    if usuario_count == 0:
+        st.title("🆕 Registro inicial de Superadministrador")
+        with st.form("registro_inicial"):
+            nombre = st.text_input("Nombre completo")
+            correo = st.text_input("Correo")
+            contrasena = st.text_input("Contraseña", type="password")
+            confirmar = st.text_input("Confirmar contraseña", type="password")
+            submitted = st.form_submit_button("Crear Superadmin")
+            if submitted:
+                if contrasena == confirmar:
+                    crear_usuario(nombre, correo, contrasena, "superadmin", None)
+                    st.success("✅ Usuario creado. Reinicia la app e inicia sesión.")
+                else:
+                    st.error("❌ Las contraseñas no coinciden.")
+        st.stop()
+    else:
+        st.title("🔐 Iniciar sesión")
+        recuperar = st.checkbox("¿Olvidaste tu contraseña?")
+        if recuperar:
+            with st.form("recuperar_password"):
+                correo_reset = st.text_input("Correo registrado")
+                nueva = st.text_input("Nueva contraseña", type="password")
+                confirmar = st.text_input("Confirmar contraseña", type="password")
+                submitted_reset = st.form_submit_button("Restablecer")
+                if submitted_reset:
+                    if nueva != confirmar:
+                        st.error("❌ Las contraseñas no coinciden.")
+                    else:
+                        conn = conectar_db()
+                        cursor = conn.cursor()
+                        cursor.execute("SELECT id FROM usuarios WHERE correo = ?", (correo_reset,))
+                        existe = cursor.fetchone()
+                        conn.close()
+                        if existe:
+                            actualizar_contrasena(correo_reset, nueva)
+                            st.success("✅ Contraseña actualizada. Ahora puedes iniciar sesión.")
+                        else:
+                            st.error("❌ Correo no encontrado.")
+        with st.form("login_form"):
+            correo = st.text_input("Correo")
+            contrasena = st.text_input("Contraseña", type="password")
+            submitted = st.form_submit_button("Ingresar")
+            if submitted:
+                usuario = autenticar_usuario(correo, contrasena)
+                if usuario:
+                    st.session_state.usuario = {
+                        "id": usuario[0],
+                        "nombre": usuario[1],
+                        "tipo": usuario[2],
+                        "admin_id": usuario[3]
+                    }
+                    st.rerun()
+                else:
+                    st.error("❌ Credenciales incorrectas.")
+        st.stop()
+
+def ver_historial(usuario):
+    print(f"[LOG] Consultando historial para usuario: {usuario['nombre']} ({usuario['tipo']})")
+    conn = conectar_db()
+    if usuario['tipo'] == 'superadmin':
+        query = "SELECT * FROM cotizaciones ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    elif usuario['tipo'] == 'admin':
+        query = f"""
+            SELECT * FROM cotizaciones
+            WHERE usuario_id IN (
+                SELECT id FROM usuarios WHERE admin_id = {usuario['id']} OR id = {usuario['id']}
+            ) ORDER BY fecha DESC
+        """
+        df = pd.read_sql_query(query, conn)
+    else:
+        query = f"SELECT * FROM cotizaciones WHERE usuario_id = {usuario['id']} ORDER BY fecha DESC"
+        df = pd.read_sql_query(query, conn)
+    conn.close()
+    print(f"[LOG] Cotizaciones encontradas: {len(df)}")
+    return df
+
+# =================== Mensaje de bienvenida ===================
+if "usuario" in st.session_state:
+    st.markdown(f"## 👋 Bienvenido, **{st.session_state.usuario['nombre']}** ({st.session_state.usuario['tipo']})")
+    st.markdown(f"📅 Fecha actual: **{date.today().strftime('%Y-%m-%d')}**")
+
+    # Panel resumen
+    st.markdown("---")
+    st.subheader("📊 Mi resumen de cotizaciones")
+    resumen_df = ver_historial(st.session_state.usuario)
+    cotizaciones_hoy = resumen_df[resumen_df['fecha'] == date.today().strftime('%Y-%m-%d')]
+    cotizaciones_mes = resumen_df[resumen_df['fecha'].str.startswith(date.today().strftime('%Y-%m'))]
+
+    col1, col2, col3 = st.columns(3)
+    col1.metric("Hoy", len(cotizaciones_hoy))
+    col2.metric("Este mes", len(cotizaciones_mes))
+    col3.metric("💰 Total Mes (USD)", f"${cotizaciones_mes['total_venta'].sum():,.2f}")
 
 
-def guardar_cotizacion(datos_generales, productos_venta, productos_costo):
+
+# =================== Funciones de cotizaciones ===================
+def guardar_cotizacion(datos, productos_venta, productos_costo):
+    print(f"[LOG] Guardando cotización para: {datos['cliente']} | Responsable: {datos['responsable']}")
     conn = conectar_db()
     cursor = conn.cursor()
     cursor.execute("""
-        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta,
-                                  total_costo, utilidad, margen, vigencia, condiciones_comerciales)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        INSERT INTO cotizaciones (cliente, contacto, propuesta, fecha, responsable, total_venta, total_costo, utilidad, margen, vigencia, condiciones_comerciales, usuario_id)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """, (
-        datos_generales["cliente"],
-        datos_generales["contacto"],
-        datos_generales["propuesta"],
-        datos_generales["fecha"],
-        datos_generales["responsable"],
-        datos_generales["total_venta"],
-        datos_generales["total_costo"],
-        datos_generales["utilidad"],
-        datos_generales["margen"],
-        datos_generales["vigencia"],
-        datos_generales["condiciones_comerciales"]
+        datos["cliente"], datos["contacto"], datos["propuesta"], datos["fecha"],
+        datos["responsable"], datos["total_venta"], datos["total_costo"],
+        datos["utilidad"], datos["margen"], datos["vigencia"], datos["condiciones_comerciales"], datos["usuario_id"]
     ))
     cotizacion_id = cursor.lastrowid
+
+    print(f"[LOG] Cotización ID generada: {cotizacion_id}")
+
     for p in productos_venta:
         cursor.execute("""
-            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
-                                           precio_unitario, descuento_aplicado,
-                                           precio_total, tipo_origen)
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
             VALUES (?, ?, ?, ?, ?, ?, 'venta')
         """, (
-            cotizacion_id,
-            p["Producto"],
-            p["Cantidad"],
-            p["Precio Unitario de Lista"],
-            p["Descuento %"],
-            p["Precio Total con Descuento"]
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Unitario de Lista"],
+            p["Precio Total con Descuento"], p["Descuento %"]
         ))
+
     for p in productos_costo:
         cursor.execute("""
-            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad,
-                                           precio_unitario, descuento_aplicado,
-                                           precio_total, tipo_origen)
+            INSERT INTO detalle_productos (cotizacion_id, producto, cantidad, precio_unitario, precio_total, descuento_aplicado, tipo_origen)
             VALUES (?, ?, ?, ?, ?, ?, 'costo')
         """, (
-            cotizacion_id,
-            p["Producto"],
-            p["Cantidad"],
-            p["Precio Base"],
-            p["Item Disc. %"],
-            p["Subtotal"]
+            cotizacion_id, p["Producto"], p["Cantidad"], p["Precio Base"],
+            p["Subtotal"], p["Item Disc. %"]
         ))
+
+    conn.commit()
+    conn.close()
+    print("[LOG] Cotización guardada exitosamente")
+    return cotizacion_id
+
+
+
+# ... (resto del código sigue igual)
+
+
+
+
+# ... (resto del código sigue igual)
+
+
+DB_PATH = "crm_cotizaciones.sqlite"
+
+def agregar_cliente(datos):
+    conn = conectar_db()
+    cursor = conn.cursor()
+    cursor.execute("""
+        INSERT INTO clientes (
+            nombre, apellido_paterno, apellido_materno, empresa, correo, telefono,
+            rfc, calle, numero_exterior, numero_interior, codigo_postal,
+            municipio, ciudad, estado, notas
+        )
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    """, (
+        datos["nombre"], datos["apellido_paterno"], datos["apellido_materno"], datos["empresa"],
+        datos["correo"], datos["telefono"], datos["rfc"], datos["calle"],
+        datos["numero_exterior"], datos["numero_interior"], datos["codigo_postal"],
+        datos["municipio"], datos["ciudad"], datos["estado"], datos["notas"]
+    ))
     conn.commit()
     conn.close()
 
-
-def ver_historial():
+def mostrar_clientes():
     conn = conectar_db()
-    df = pd.read_sql_query("""
-        SELECT id, propuesta, cliente, fecha, total_venta, total_costo, utilidad, margen
-        FROM cotizaciones ORDER BY fecha DESC
-    """, conn)
+    df = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
     conn.close()
     return df
 
+def vista_clientes():
+    st.title("📇 Gestión de Clientes")
 
-# --- Carga de Datos de Precios --- <<<< ¡¡¡AÑADIR ESTO DE NUEVO!!!
-@st.cache_data
-def cargar_datos(file_path="precios_threatdown.xlsx"):
-    """Carga y procesa el archivo Excel de precios."""
-    try:
-        # Asegúrate que el path sea correcto relativo a la app en Cloud
-        full_file_path = os.path.join(APP_DIR, file_path)
-        if not os.path.exists(full_file_path):
-             st.error(f"❌ Error: No se encontró el archivo de precios en la ruta esperada: '{full_file_path}'. Asegúrate de que esté incluido en tu repositorio y despliegue.")
-             return pd.DataFrame()
+    with st.expander("➕ Agregar nuevo cliente"):
+        with st.form("form_nuevo_cliente"):
+            col1, col2, col3 = st.columns(3)
+            nombre = col1.text_input("Nombre")
+            apellido_paterno = col2.text_input("Apellido Paterno")
+            apellido_materno = col3.text_input("Apellido Materno")
+            empresa = st.text_input("Empresa")
+            correo = st.text_input("Correo electrónico")
+            telefono = st.text_input("Teléfono")
 
-        df = pd.read_excel(full_file_path)
-        # Limpieza básica
-        df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
-        df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
-        # Asegurar que columnas clave existan
-        required_cols = ["Term (Month)", "Product Title", "MSRP USD", "Tier Min", "Tier Max"]
-        if not all(col in df.columns for col in required_cols):
-            st.error(f"El archivo Excel '{file_path}' debe contener las columnas: {', '.join(required_cols)}")
-            return pd.DataFrame() # Retornar DF vacío si faltan columnas
-        return df.dropna(subset=["Tier Min", "Tier Max", "MSRP USD"])
-    except FileNotFoundError:
-        # Este error es menos probable ahora con la comprobación explícita de os.path.exists
-        st.error(f"❌ Error interno (FileNotFound): No se encontró el archivo de precios '{full_file_path}'.")
-        return pd.DataFrame()
-    except Exception as e:
-        st.error(f"❌ Error al cargar o procesar el archivo Excel '{file_path}': {e}")
-        import traceback
-        st.error(traceback.format_exc()) # Muestra más detalles del error
-        return pd.DataFrame()
+            st.markdown("**Domicilio Fiscal**")
+            rfc = st.text_input("RFC")
+            calle = st.text_input("Calle")
+            numero_exterior = st.text_input("Número Exterior")
+            numero_interior = st.text_input("Número Interior")
+            codigo_postal = st.text_input("Código Postal")
+            municipio = st.text_input("Municipio")
+            ciudad = st.text_input("Ciudad")
+            estado = st.text_input("Estado")
+            notas = st.text_area("Notas", height=100)
 
-# --- Inicializar DB y Cargar Datos ---
-try:
-    pass
-except Exception as e:
-    st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
-    st.exception(e) # Muestra el traceback completo en la app
-    st.stop() # Detiene la ejecución si la DB falla
+            submitted = st.form_submit_button("Guardar cliente")
+            if submitted:
+                datos = {
+                    "nombre": nombre,
+                    "apellido_paterno": apellido_paterno,
+                    "apellido_materno": apellido_materno,
+                    "empresa": empresa,
+                    "correo": correo,
+                    "telefono": telefono,
+                    "rfc": rfc,
+                    "calle": calle,
+                    "numero_exterior": numero_exterior,
+                    "numero_interior": numero_interior,
+                    "codigo_postal": codigo_postal,
+                    "municipio": municipio,
+                    "ciudad": ciudad,
+                    "estado": estado,
+                    "notas": notas
+                }
+                agregar_cliente(datos)
+                st.success("✅ Cliente guardado con éxito")
 
-# --- LLAMADA ÚNICA Y CORRECTA ---
-df_precios = cargar_datos() # <--- Llamada aquí
+    st.subheader("📋 Lista de Clientes")
+    df = mostrar_clientes()
+    st.dataframe(df)
 
-# --- QUITAR LA LLAMADA DUPLICADA ---
+import streamlit as st
+import pandas as pd
+import sqlite3
+import os
+from datetime import date
 
-# --- Inicializar Session State para Productos Manuales ---
-if 'manual_products' not in st.session_state:
-    st.session_state.manual_products = []
+# Crear ruta segura para base de datos en entorno escribible
+DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 
-# ... (El resto de tu código de Streamlit: UI, lógica, etc.) ...
+# ========================
+# Crear base y tablas si no existen
+# ========================
+def cargar_datos():
+    df = pd.read_excel("precios_threatdown.xlsx")
+    df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
+    df["Tier Max"] = pd.to_numeric(df["Tier Max"], errors="coerce")
+    return df.dropna(subset=["Tier Min", "Tier Max"])
 
+df_precios = cargar_datos()
 
-# ... (código anterior) ...
-
-# --- Inicializar DB y Cargar Datos ---
-try:
-    pass
-except Exception as e:
-    st.error(f"Fallo crítico al inicializar la base de datos. La aplicación no puede continuar.")
-    st.exception(e) # Muestra el traceback completo en la app
-    st.stop() # Detiene la ejecución si la DB falla
-
-
-# ... (resto del código) ...
-
-
-# --- Inicializar Session State para Productos Manuales ---
-if 'manual_products' not in st.session_state:
-    st.session_state.manual_products = [] # Lista para guardar dicts de productos manuales
-
-# --- Interfaz de Streamlit ---
- 
 st.title("Cotizador ThreatDown con CRM")
 
-# --- Menú Lateral ---
 menu = st.sidebar.selectbox("Secciones", ["Cotizaciones", "Clientes"])
 
 if menu == "Clientes":
-    # Comenta o descomenta según tengas el módulo
-    # vista_clientes()
     vista_clientes()
     st.stop()
 
-# --- Entradas Generales de la Cotización (Sidebar) ---
-st.sidebar.header("Datos Generales")
-cliente = st.sidebar.text_input("Cliente (*)", key="cliente")
-contacto = st.sidebar.text_input("Nombre de contacto", key="contacto")
-propuesta = st.sidebar.text_input("Nombre de la propuesta (*)", key="propuesta")
-fecha = st.sidebar.date_input("Fecha", value=date.today(), key="fecha")
-responsable = st.sidebar.text_input("Responsable / Vendedor (*)", key="responsable")
-vigencia = st.sidebar.text_input(
-    "Vigencia",
-    value="30 días",
-    key="vigencia"
-)
-condiciones_comerciales = st.sidebar.text_area(
-    "Condiciones Comerciales",
-    value="Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.",
-    height=100,
-    key="condiciones"
-)
 
-# --- Selección de Productos del Excel ---
-st.header("1. Selección de Productos (desde Lista de Precios)")
+st.sidebar.header("Datos de la cotización")
 
-if df_precios.empty:
-    st.error("No se pudieron cargar los datos de precios. Verifica el archivo Excel y las columnas requeridas.")
-    st.stop() # Detener si no hay datos de precios
+# Asegurar inicialización de base de datos antes de cualquier consulta
+inicializar_db()
 
-terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
-if not terminos_disponibles:
-     st.warning("No hay plazos (Term (Month)) disponibles en el archivo de precios.")
-     st.stop()
-
-termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (meses):", terminos_disponibles, key="term")
-
-# Filtrar productos disponibles para el término seleccionado
-df_filtrado_termino = df_precios[df_precios["Term (Month)"] == termino_seleccionado]
-productos_disponibles = sorted(df_filtrado_termino["Product Title"].unique())
-
-if not productos_disponibles:
-    st.warning(f"No hay productos definidos para el plazo de {termino_seleccionado} meses.")
-    seleccion_excel = [] # Lista vacía si no hay productos
-else:
-    seleccion_excel = st.multiselect(
-        "Selecciona productos:",
-        productos_disponibles,
-        key="seleccion_excel"
-    )
-
-# --- Sección para Agregar Productos Manualmente ---
-st.header("2. Agregar Productos Manualmente (Opcional)")
-
-if st.button("➕ Agregar Producto Manual", key="add_manual"):
-    # Añade un nuevo diccionario vacío con un ID único para identificarlo
-    st.session_state.manual_products.append({"id": str(uuid.uuid4())})
-    # st.rerun() # No siempre es necesario, Streamlit maneja bien los updates
-
-# Mostrar inputs para cada producto manual en la lista de session_state
-indices_manuales_a_eliminar = []
-for i, prod_manual in enumerate(st.session_state.manual_products):
-    st.markdown(f"--- \n**Producto Manual #{i+1}**")
-    prod_id = prod_manual["id"] # Usar el ID único en las keys
-
-    # Usar columnas para mejor layout
-    col1, col2, col3 = st.columns([3, 1, 1])
-    with col1:
-        prod_manual["Producto"] = st.text_input("Nombre del Producto (*)", key=f"manual_nombre_{prod_id}")
-        # prod_manual["Descripcion"] = st.text_area("Descripción (Opcional)", key=f"manual_desc_{prod_id}")
-    with col2:
-        prod_manual["Cantidad"] = st.number_input("Cantidad (*)", min_value=1, value=1, step=1, key=f"manual_cantidad_{prod_id}")
-    with col3:
-        # Botón para eliminar este producto manual
-        if st.button(f"➖ Eliminar #{i+1}", key=f"manual_remove_{prod_id}"):
-            indices_manuales_a_eliminar.append(i)
-
-    st.markdown("**Costos y Descuentos Base:**")
-    col_costo1, col_costo2, col_costo3, col_costo4 = st.columns(4)
-    with col_costo1:
-        prod_manual["Precio Base"] = st.number_input("Precio Base Unitario (*)", min_value=0.0, value=0.0, step=0.01, format="%.2f", key=f"manual_precio_base_{prod_id}")
-    with col_costo2:
-        prod_manual["Item Disc. %"] = st.number_input("Item Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"manual_item_disc_{prod_id}")
-    with col_costo3:
-        prod_manual["Channel Disc. %"] = st.number_input("Channel Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"manual_channel_disc_{prod_id}")
-    with col_costo4:
-        prod_manual["Deal Reg. Disc. %"] = st.number_input("Deal Reg. Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"manual_deal_disc_{prod_id}")
-
-    st.markdown("**Precio de Venta:**")
-    col_venta1, col_venta2 = st.columns(2)
-    with col_venta1:
-        # Usamos el Precio Base como Precio de Lista para el producto manual
-        st.text(f"Precio Unitario Lista: ${prod_manual.get('Precio Base', 0.0):,.2f}")
-        prod_manual["Precio Unitario de Lista"] = prod_manual.get("Precio Base", 0.0)
-    with col_venta2:
-        prod_manual["Descuento %"] = st.number_input("Descuento Directo Venta (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"manual_direct_disc_{prod_id}")
-
-# Eliminar productos manuales marcados (iterar en reversa para no afectar índices)
-if indices_manuales_a_eliminar:
-    for index in sorted(indices_manuales_a_eliminar, reverse=True):
-        del st.session_state.manual_products[index]
-    st.rerun() # Forzar actualización de la UI después de eliminar
-
-# --- Procesamiento y Cálculo de la Cotización ---
-st.header("3. Resumen y Cálculo")
-
-productos_costo_calculado = []
-productos_venta_base = [] # Lista base para luego aplicar descuento de venta
-
-# Procesar productos seleccionados del Excel
-for prod_nombre in seleccion_excel:
-    df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod_nombre]
-    if df_producto.empty:
-        st.warning(f"No se encontró el producto '{prod_nombre}' para el plazo {termino_seleccionado}. Omitiendo.")
-        continue
-
-    # Usar un expander para los inputs de cantidad/descuentos de productos Excel
-        cantidad = st.number_input(f"Cantidad:", min_value=1, value=1, step=1, key=f"qty_{prod_nombre}")
-
-        # Encontrar el rango de precios correcto
-        df_rango = df_producto[(df_producto["Tier Min"] <= cantidad) & (df_producto["Tier Max"] >= cantidad)]
-
-        if not df_rango.empty:
-            fila = df_rango.iloc[0]
-            precio_base = fila["MSRP USD"]
-
-            st.markdown("**Costos y Descuentos Base:**")
-            col_costo_excel1, col_costo_excel2, col_costo_excel3 = st.columns(3)
-            with col_costo_excel1:
-                 item_disc = st.number_input(f"Item Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"item_disc_{prod_nombre}")
-            with col_costo_excel2:
-                 channel_disc = st.number_input(f"Channel Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"channel_disc_{prod_nombre}")
-            with col_costo_excel3:
-                 deal_reg_disc = st.number_input(f"Deal Reg. Disc. (%)", 0.0, 100.0, 0.0, step=0.1, format="%.1f", key=f"deal_disc_{prod_nombre}")
-
-            # Calcular Costo
-            precio_costo_1 = precio_base * (1 - item_disc / 100)
-            total_channel_deal = channel_disc + deal_reg_disc # Suma simple, ajustar si es multiplicativo
-            precio_costo_final_unitario = precio_costo_1 * (1 - total_channel_deal / 100)
-            subtotal_costo = precio_costo_final_unitario * cantidad
-
-            productos_costo_calculado.append({
-                "Producto": prod_nombre,
-                "Cantidad": cantidad,
-                "Precio Base": precio_base,
-                "Item Disc. %": item_disc,
-                "Channel + Deal Disc. %": total_channel_deal,
-                "Precio Final Unitario (Costo)": round(precio_costo_final_unitario, 2),
-                "Subtotal": round(subtotal_costo, 2)
-            })
-
-            # Preparar para la tabla de Venta (usamos el MSRP como precio de lista)
-            st.markdown("**Precio de Venta:**")
-            col_venta_excel1, col_venta_excel2 = st.columns(2)
-            with col_venta_excel1:
-                 st.text(f"Precio Unitario Lista: ${precio_base:,.2f}")
-            with col_venta_excel2:
-                 descuento_directo_venta = st.number_input(f"Descuento Directo Venta (%)",
-                                                    0.0, 100.0, 0.0, step=0.1, format="%.1f",
-                                                    key=f"direct_discount_{prod_nombre}")
-
-            productos_venta_base.append({
-                "Producto": prod_nombre,
-                "Cantidad": cantidad,
-                "Precio Unitario de Lista": precio_base,
-                "Descuento %": descuento_directo_venta # Guardamos el descuento para calcular después
-            })
-
-        else:
-            st.warning(f"No se encontró un rango de precios para '{prod_nombre}' con cantidad {cantidad}.")
-
-# Procesar productos manuales (ya tienen sus inputs)
-for prod_manual in st.session_state.manual_products:
-    # Validar que los campos necesarios del producto manual estén llenos
-    if not prod_manual.get("Producto") or prod_manual.get("Cantidad") is None or prod_manual.get("Precio Base") is None:
-        st.warning(f"Faltan datos obligatorios (*) para el producto manual ID: {prod_manual['id']}. Se omitirá.")
-        continue
-
-    cantidad = prod_manual["Cantidad"]
-    precio_base = prod_manual["Precio Base"]
-    item_disc = prod_manual.get("Item Disc. %", 0.0)
-    channel_disc = prod_manual.get("Channel Disc. %", 0.0)
-    deal_reg_disc = prod_manual.get("Deal Reg. Disc. %", 0.0)
-    descuento_directo_venta = prod_manual.get("Descuento %", 0.0)
-
-    # Calcular Costo para producto manual
-    precio_costo_1 = precio_base * (1 - item_disc / 100)
-    total_channel_deal = channel_disc + deal_reg_disc
-    precio_costo_final_unitario = precio_costo_1 * (1 - total_channel_deal / 100)
-    subtotal_costo = precio_costo_final_unitario * cantidad
-
-    productos_costo_calculado.append({
-        "Producto": prod_manual["Producto"],
-        "Cantidad": cantidad,
-        "Precio Base": precio_base,
-        "Item Disc. %": item_disc,
-        "Channel + Deal Disc. %": total_channel_deal,
-        "Precio Final Unitario (Costo)": round(precio_costo_final_unitario, 2),
-        "Subtotal": round(subtotal_costo, 2)
-    })
-
-    # Añadir a la base para cálculo de venta
-    productos_venta_base.append({
-        "Producto": prod_manual["Producto"],
-        "Cantidad": cantidad,
-        "Precio Unitario de Lista": precio_base, # Usamos el precio base manual como lista
-        "Descuento %": descuento_directo_venta
-    })
-
-# --- Mostrar Resúmenes y Calcular Totales ---
-costo_total_final = 0.0
-df_cotizacion_costo = pd.DataFrame() # Inicializar vacío
-
-if productos_costo_calculado:
-    st.subheader("Resumen de Costos (Estimado)")
-    df_cotizacion_costo = pd.DataFrame(productos_costo_calculado)
-    # Reordenar/Seleccionar columnas para mostrar
-    cols_mostrar_costo = ["Producto", "Cantidad", "Precio Base", "Item Disc. %", "Channel + Deal Disc. %", "Precio Final Unitario (Costo)", "Subtotal"]
-    st.dataframe(df_cotizacion_costo[cols_mostrar_costo])
-    costo_total_final = df_cotizacion_costo["Subtotal"].sum()
-    st.metric("Costo Total Estimado", f"${costo_total_final:,.2f}")
-else:
-    st.info("No hay productos seleccionados o válidos para calcular costos.")
-
-# Calcular y mostrar tabla de VENTA FINAL
-precio_venta_total_final = 0.0
-productos_venta_final_calculado = []
-df_tabla_venta_final = pd.DataFrame() # Inicializar vacío
-
-if productos_venta_base:
-    st.subheader("Resumen de Venta (Precio Cliente)")
-    for item in productos_venta_base:
-        cantidad = item["Cantidad"]
-        precio_unitario_lista = item["Precio Unitario de Lista"]
-        descuento_directo = item["Descuento %"]
-
-        precio_total_lista = precio_unitario_lista * cantidad
-        precio_total_con_descuento = precio_total_lista * (1 - descuento_directo / 100)
-
-        productos_venta_final_calculado.append({
-            "Producto": item["Producto"],
-            "Cantidad": cantidad,
-            "Precio Unitario de Lista": round(precio_unitario_lista, 2),
-            "Precio Total de Lista": round(precio_total_lista, 2),
-            "Descuento %": descuento_directo,
-            "Precio Total con Descuento": round(precio_total_con_descuento, 2)
-        })
-
-    if productos_venta_final_calculado:
-        df_tabla_venta_final = pd.DataFrame(productos_venta_final_calculado)
-        # Reordenar/Seleccionar columnas para mostrar
-        cols_mostrar_venta = ["Producto", "Cantidad", "Precio Unitario de Lista", "Precio Total de Lista", "Descuento %", "Precio Total con Descuento"]
-        st.dataframe(df_tabla_venta_final[cols_mostrar_venta])
-        precio_venta_total_final = df_tabla_venta_final["Precio Total con Descuento"].sum()
-        st.metric("Precio Total de Venta (Cliente)", f"${precio_venta_total_final:,.2f}")
-
-else:
-    st.info("No hay productos válidos para calcular el precio de venta.")
-
-
-# Calcular Utilidad y Margen
-utilidad = 0.0
-margen = 0.0
-if precio_venta_total_final > 0: # Evitar división por cero
-    utilidad = precio_venta_total_final - costo_total_final
-    margen = (utilidad / precio_venta_total_final) * 100 if precio_venta_total_final else 0
-    st.subheader("Rentabilidad de la Operación")
-    col1, col2 = st.columns(2)
-    col1.metric("Utilidad Estimada", f"${utilidad:,.2f}")
-    col2.metric("Margen Estimado (%)", f"{margen:.2f}%")
-elif costo_total_final > 0:
-     st.warning("El precio de venta es cero o negativo, no se puede calcular margen.")
-
-
-# --- Botón Guardar ---
-st.divider()
-if st.button("💾 Guardar Cotización", key="save_quote", type="primary", disabled=(not productos_venta_final_calculado)): # Deshabilitar si no hay productos
-    datos_generales = {
-        "cliente": cliente,
-        "contacto": contacto,
-        "propuesta": propuesta,
-        "fecha": fecha.strftime('%Y-%m-%d'),
-        "responsable": responsable,
-        "total_venta": precio_venta_total_final,
-        "total_costo": costo_total_final,
-        "utilidad": utilidad,
-        "margen": margen,
-        "vigencia": vigencia,
-        "condiciones_comerciales": condiciones_comerciales
-    }
-    # Pasar los dataframes convertidos a lista de diccionarios
-    guardar_cotizacion(datos_generales,
-                       df_tabla_venta_final.to_dict("records") if not df_tabla_venta_final.empty else [],
-                       df_cotizacion_costo.to_dict("records") if not df_cotizacion_costo.empty else [])
-
-
-# --- Historial y Detalle ---
-st.divider()
-st.header("📋 Historial y Detalle de Cotizaciones")
-
-# --- Ver Historial ---
-try:
-    df_hist = ver_historial()
-    if not df_hist.empty:
-        st.dataframe(df_hist, use_container_width=True)
-    else:
-        st.info("No hay cotizaciones guardadas aún.")
-except Exception as e:
-    st.error(f"Error al mostrar el historial: {e}")
-
-# --- Ver Detalle de Cotización Seleccionada ---
-st.subheader("🔍 Ver Detalle de Cotización")
-cotizacion_id_seleccionada = None # Para usar en la generación del PDF
+# Cargar empresas registradas de forma segura
 try:
     conn = conectar_db()
-    df_cotizaciones_list = pd.read_sql_query("SELECT id, propuesta, cliente, fecha FROM cotizaciones ORDER BY fecha DESC, id DESC", conn)
-
-    if df_cotizaciones_list.empty:
-        st.info("No hay cotizaciones guardadas para mostrar detalle.")
-    else:
-        # Crear opción legible para el selectbox
-        df_cotizaciones_list["Resumen"] = df_cotizaciones_list["id"].astype(str) + " | " + df_cotizaciones_list["fecha"] + " | " + df_cotizaciones_list["cliente"] + " | " + df_cotizaciones_list["propuesta"]
-        opciones_resumen = ["Selecciona una cotización..."] + df_cotizaciones_list["Resumen"].tolist()
-        seleccion_resumen = st.selectbox("Cotización:", opciones_resumen, key="select_detail")
-
-        if seleccion_resumen != "Selecciona una cotización...":
-            # Extraer ID de la cadena seleccionada
-            cotizacion_id_seleccionada = int(seleccion_resumen.split(" | ")[0])
-
-            # Datos generales
-            datos_detalle = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {cotizacion_id_seleccionada}", conn).iloc[0]
-
-            st.markdown(f"**ID:** {datos_detalle['id']}")
-            st.markdown(f"**Cliente:** {datos_detalle['cliente']} | **Contacto:** {datos_detalle['contacto']}")
-            st.markdown(f"**Propuesta:** {datos_detalle['propuesta']} | **Fecha:** {datos_detalle['fecha']}")
-            st.markdown(f"**Responsable:** {datos_detalle['responsable']}")
-            st.markdown(f"**Vigencia:** {datos_detalle['vigencia']}")
-
-            st.text_area("Condiciones Comerciales:", value=datos_detalle['condiciones_comerciales'], height=100, disabled=True)
-
-            col_det1, col_det2, col_det3, col_det4 = st.columns(4)
-            col_det1.metric("Total Venta", f"${datos_detalle['total_venta']:,.2f}")
-            col_det2.metric("Total Costo", f"${datos_detalle['total_costo']:,.2f}")
-            col_det3.metric("Utilidad", f"${datos_detalle['utilidad']:,.2f}")
-            col_det4.metric("Margen", f"{datos_detalle['margen']:.2f}%")
-
-
-            # Productos de venta (lo que ve el cliente)
-            st.markdown("##### Productos Cotizados (Venta Cliente)")
-            df_venta_detalle = pd.read_sql_query(f"""
-                SELECT producto AS "Producto",
-                       cantidad AS "Cantidad",
-                       precio_unitario AS "Precio Unit. Lista",
-                       (precio_unitario * cantidad) AS "Precio Total Lista", -- Calculado al vuelo
-                       descuento_aplicado AS "Desc. %",
-                       precio_total AS "Precio Final"
-                FROM detalle_productos
-                WHERE cotizacion_id = {cotizacion_id_seleccionada} AND tipo_origen = 'venta'
-            """, conn)
-            st.dataframe(df_venta_detalle, use_container_width=True)
-
-            # Productos de costo (interno)
-            st.markdown("##### Detalle de Costos (Interno)")
-            df_costo_detalle = pd.read_sql_query(f"""
-                SELECT producto AS "Producto",
-                       cantidad AS "Cantidad",
-                       precio_unitario AS "Precio Base Unit.",
-                       descuento_aplicado AS "Item Disc. %", -- Asumiendo que esto es Item Disc
-                       precio_total AS "Subtotal Costo"
-                       -- Podrías añadir más columnas si las guardaste (ej. channel_deal_disc_costo)
-                FROM detalle_productos
-                WHERE cotizacion_id = {cotizacion_id_seleccionada} AND tipo_origen = 'costo'
-            """, conn)
-            st.dataframe(df_costo_detalle, use_container_width=True)
-
-except sqlite3.Error as e:
-    st.error(f"❌ Error de base de datos al cargar detalle: {e}")
+    df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+    conn.close()
 except Exception as e:
-     st.error(f"❌ Error inesperado al cargar detalle: {e}")
-finally:
-    if 'conn' in locals() and conn:
-        conn.close()
+    st.error("❌ Error al cargar clientes: asegúrate de haber inicializado la base de datos y que existan datos.")
+    st.stop()
+
+if df_clientes.empty:
+    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
+    st.stop()
 
 
-# --- Generación de PDF ---
+# =======================
+# Cargar empresas registradas
+# =======================
+conn = conectar_db()
+df_clientes = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+conn.close()
 
-# Definición de la clase PDF (movida aquí para claridad)
+if df_clientes.empty:
+    st.sidebar.warning("⚠️ No hay clientes registrados. Por favor agrega uno primero en la sección 'Clientes'.")
+    st.stop()
+
+empresa_seleccionada = st.sidebar.selectbox("Selecciona la empresa cliente", df_clientes["empresa"].unique())
+cliente_row = df_clientes[df_clientes["empresa"] == empresa_seleccionada].iloc[0]
+cliente = empresa_seleccionada
+contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
+
+df_clientes["display"] = df_clientes["nombre"] + " " + df_clientes["apellido_paterno"] + " " + df_clientes["apellido_materno"] + " - " + df_clientes["empresa"]
+cliente_seleccionado = st.sidebar.selectbox("Selecciona un cliente", df_clientes["display"])
+cliente_row = df_clientes[df_clientes["display"] == cliente_seleccionado].iloc[0]
+cliente = cliente_row["empresa"]
+contacto = cliente_row["nombre"] + " " + cliente_row["apellido_paterno"] + " " + cliente_row["apellido_materno"]
+
+propuesta = st.sidebar.text_input("Nombre de la propuesta")
+fecha = st.sidebar.date_input("Fecha", value=date.today())
+responsable = st.sidebar.text_input("Responsable / Vendedor")
+
+vigencia = st.text_input(
+    "Vigencia de la propuesta",
+    value="30 días"
+)
+
+condiciones_comerciales = st.text_area(
+    "Condiciones de Pago y Comerciales",
+    value="Precios en USD. Pago contra entrega. No incluye impuestos. Licenciamiento anual.",
+    height=150
+)
+
+
+terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
+termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
+
+df_filtrado_termino = df_precios[df_precios["Term (Month)"] == termino_seleccionado]
+productos = df_filtrado_termino["Product Title"].unique()
+seleccion = st.multiselect("Selecciona los productos que deseas cotizar:", productos)
+
+cotizacion = []
+productos_para_tabla_secundaria = []
+
+for prod in seleccion:
+    df_producto = df_filtrado_termino[df_filtrado_termino["Product Title"] == prod]
+    cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1, step=1)
+
+    df_rango = df_producto[(df_producto["Tier Min"] <= cantidad) & (df_producto["Tier Max"] >= cantidad)]
+    if not df_rango.empty:
+        fila = df_rango.iloc[0]
+        precio_base = fila["MSRP USD"]
+
+        item_disc = st.number_input(f"Descuento 'Item' (%) para '{prod}':", 0.0, 100.0, 0.0)
+        channel_disc = st.number_input(f"Descuento 'Channel Disc.' (%) para '{prod}':", 0.0, 100.0, 0.0)
+        deal_reg_disc = st.number_input(f"Descuento 'Deal Reg. Disc.' (%) para '{prod}':", 0.0, 100.0, 0.0)
+
+        precio1 = precio_base * (1 - item_disc / 100)
+        total_channel = channel_disc + deal_reg_disc
+        precio_final = precio1 * (1 - total_channel / 100)
+        subtotal = precio_final * cantidad
+
+        cotizacion.append({
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Base": precio_base,
+            "Item Disc. %": item_disc,
+            "Channel + Deal Disc. %": total_channel,
+            "Precio Final Unitario": round(precio_final, 2),
+            "Subtotal": round(subtotal, 2)
+        })
+
+        productos_para_tabla_secundaria.append({
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Unitario de Lista": precio_base
+        })
+    else:
+        st.warning(f"No hay precios disponibles para '{prod}' con cantidad {cantidad}.")
+
+if cliente or propuesta or responsable:
+    st.subheader("Datos de la cotización")
+    st.markdown(f"**Cliente:** {cliente}")
+    st.markdown(f"**Contacto:** {contacto}")
+    st.markdown(f"**Propuesta:** {propuesta}")
+    st.markdown(f"**Fecha:** {fecha.strftime('%Y-%m-%d')}")
+    st.markdown(f"**Responsable:** {responsable}")
+
+costo_total = 0
+if cotizacion:
+    df_cotizacion = pd.DataFrame(cotizacion)
+    st.subheader("Resumen de Cotización (costos)")
+    st.dataframe(df_cotizacion)
+    costo_total = df_cotizacion["Subtotal"].sum()
+    st.success(f"Costo total con descuentos aplicados: ${costo_total:,.2f}")
+
+precio_venta_total = 0
+tabla_descuento = []
+if productos_para_tabla_secundaria:
+    st.subheader("Análisis: Precio de venta con descuento directo sobre lista")
+    for item in productos_para_tabla_secundaria:
+        prod = item["Producto"]
+        cantidad = item["Cantidad"]
+        precio_unitario = item["Precio Unitario de Lista"]
+        precio_total_lista = precio_unitario * cantidad
+
+        descuento_directo = st.number_input(f"Descuento directo (%) sobre lista para '{prod}':",
+                                            0.0, 100.0, 0.0, key=f"direct_discount_{prod}")
+        precio_con_descuento = precio_total_lista * (1 - descuento_directo / 100)
+
+        tabla_descuento.append({
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Unitario de Lista": round(precio_unitario, 2),
+            "Precio Total de Lista": round(precio_total_lista, 2),
+            "Descuento %": descuento_directo,
+            "Precio Total con Descuento": round(precio_con_descuento, 2)
+        })
+
+    df_tabla_descuento = pd.DataFrame(tabla_descuento)
+    st.dataframe(df_tabla_descuento)
+    precio_venta_total = df_tabla_descuento["Precio Total con Descuento"].sum()
+    st.success(f"Precio total de venta: ${precio_venta_total:,.2f}")
+else:
+    st.info("Aún no hay productos válidos para aplicar descuento directo.")
+
+if precio_venta_total > 0 and costo_total > 0:
+    utilidad = precio_venta_total - costo_total
+    margen = (utilidad / precio_venta_total) * 100
+    st.subheader("Utilidad de la operación")
+    col1, col2 = st.columns(2)
+    col1.metric("Utilidad total", f"${utilidad:,.2f}")
+    col2.metric("Margen (%)", f"{margen:.2f}%")
+
+    if st.button("💾 Guardar cotización"):
+        datos = {
+            "cliente": cliente,
+            "contacto": contacto,
+            "propuesta": propuesta,
+            "fecha": fecha.strftime('%Y-%m-%d'),
+            "responsable": responsable,
+            "total_venta": precio_venta_total,
+            "total_costo": costo_total,
+            "utilidad": utilidad,
+            "margen": margen,
+        "vigencia": vigencia,
+        "condiciones_comerciales": condiciones_comerciales
+        }
+        guardar_cotizacion(datos, df_tabla_descuento.to_dict("records"), df_cotizacion.to_dict("records"))
+        st.success("✅ Cotización guardada en CRM")
+
+st.subheader("📋 Historial de cotizaciones")
+try:
+    df_hist = ver_historial()
+    st.dataframe(df_hist)
+except:
+    st.warning("No hay cotizaciones guardadas aún.")
+
+
+
+# =============================
+# Ver detalle de cotización seleccionada
+# =============================
+st.subheader("🔍 Ver detalle de cotización")
+
+conn = conectar_db()
+df_cotizaciones = pd.read_sql_query("SELECT id, propuesta, cliente, fecha FROM cotizaciones ORDER BY fecha DESC", conn)
+
+if df_cotizaciones.empty:
+    st.info("No hay cotizaciones guardadas para mostrar el detalle.")
+else:
+    df_cotizaciones["Resumen"] = df_cotizaciones["fecha"] + " - " + df_cotizaciones["cliente"] + " - " + df_cotizaciones["propuesta"]
+    seleccion_resumen = st.selectbox("Selecciona una cotización para ver el detalle:", df_cotizaciones["Resumen"])
+    
+    if seleccion_resumen:
+        cotizacion_id = int(df_cotizaciones[df_cotizaciones["Resumen"] == seleccion_resumen]["id"].values[0])
+        
+        # Datos generales
+        datos = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {cotizacion_id}", conn).iloc[0]
+        st.markdown(f"**Cliente:** {datos['cliente']}")
+        st.markdown(f"**Contacto:** {datos['contacto']}")
+        st.markdown(f"**Propuesta:** {datos['propuesta']}")
+        st.markdown(f"**Fecha:** {datos['fecha']}")
+        st.markdown(f"**Responsable:** {datos['responsable']}")
+        st.markdown(f"**Total Venta:** ${datos['total_venta']:,.2f}")
+        st.markdown(f"**Total Costo:** ${datos['total_costo']:,.2f}")
+        st.markdown(f"**Utilidad:** ${datos['utilidad']:,.2f}")
+        st.markdown(f"**Margen:** {datos['margen']:.2f}%")
+
+        # Productos de venta
+        st.markdown("### Productos cotizados (venta)")
+        df_venta = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'venta'
+        ''', conn)
+        st.dataframe(df_venta)
+
+        # Productos de costo
+        st.markdown("### Productos base (costos)")
+        df_costo = pd.read_sql_query(f'''
+            SELECT producto, cantidad, precio_unitario, precio_total, descuento_aplicado
+            FROM detalle_productos
+            WHERE cotizacion_id = {cotizacion_id} AND tipo_origen = 'costo'
+        ''', conn)
+        st.dataframe(df_costo)
+
+conn.close()
+
+
+from fpdf import FPDF
+
 class CotizacionPDFConLogo(FPDF):
-    def __init__(self, orientation='P', unit='mm', format='A4', logo_path="LOGO Syn Apps Sys_edited (2).png"):
-        super().__init__(orientation, unit, format)
-        self.logo_path = logo_path
-        self.company_name = "SYNAPPSSYS" # Nombre de tu empresa
-        self.alias_nb_pages() # Para tener numeración de páginas {nb}
-
     def header(self):
-        try:
-            if os.path.exists(self.logo_path):
-                 self.image(self.logo_path, x=10, y=8, w=50)
-            else:
-                 self.set_font("Helvetica", "I", 8)
-                 self.cell(50, 10, "(Logo no encontrado)")
-        except Exception as e:
-            print(f"Error cargando logo: {e}") # Log error si FPDF no puede cargar la imagen
-            self.set_font("Helvetica", "I", 8)
-            self.cell(50, 10, "(Error logo)")
-
+        self.image("LOGO Syn Apps Sys_edited (2).png", x=10, y=8, w=50)
         self.set_font("Helvetica", "B", 16)
-        # Mover título a la derecha del logo
-        self.set_xy(70, 15) # Ajustar coordenadas Y si es necesario
-        self.cell(0, 10, "Propuesta Comercial", ln=False, align="L") # ln=False para que no salte línea
+        self.set_xy(70, 12)
+        self.cell(0, 10, "Cotización de Servicios", ln=True, align="L")
+        self.ln(20)
 
-        # Línea divisoria debajo del header
-        self.ln(15) # Espacio antes de la línea
-        self.set_line_width(0.5)
-        self.line(10, self.get_y(), 200, self.get_y())
-        self.ln(5) # Espacio después de la línea
-
-
-    def footer(self):
-        self.set_y(-15) # Posición a 1.5 cm del final
-        self.set_font("Helvetica", "I", 8)
-        # Línea divisoria arriba del footer
-        self.set_line_width(0.2)
-        self.line(10, self.get_y() - 2, 200, self.get_y() - 2)
-        # Texto del footer
-        self.cell(0, 10, f"Página {self.page_no()}/{{nb}} | {self.company_name}", 0, 0, "C")
-
-    def chapter_title(self, title):
-        self.set_font("Helvetica", "B", 12)
-        self.cell(0, 8, title, ln=True, align="L")
-        self.ln(2)
-
-    def chapter_body(self, text):
+    def encabezado_cliente(self, datos):
         self.set_font("Helvetica", "", 10)
-        self.multi_cell(0, 5, text)
-        self.ln()
-
-    def datos_cliente(self, datos):
-        self.set_font("Helvetica", "B", 11)
-        self.cell(95, 7, "Datos del Cliente", border='B', ln=True)
-        # self.cell(95, 7, "Datos de la Propuesta", border='B', ln=True) # Mitad derecha
-        self.ln(2)
-
-        self.set_font("Helvetica", "", 10)
-        col_width = 95 # Ancho para cada columna (aprox mitad de página A4 menos márgenes)
-        y_start = self.get_y()
-
-        # Columna Izquierda: Cliente/Contacto
-        self.multi_cell(col_width, 6, f"Cliente: {datos.get('cliente', 'N/A')}\n"
-                                    f"Contacto: {datos.get('contacto', 'N/A')}",
-                                    border=0, align="L")
-        y_left = self.get_y()
-        self.set_y(y_start) # Volver al inicio Y
-
-        # Columna Derecha: Propuesta/Fecha/Responsable
-        self.set_x(10 + col_width + 5) # Mover a la derecha
-        self.multi_cell(col_width, 6, f"Propuesta: {datos.get('propuesta', 'N/A')}\n"
-                                     f"Fecha: {datos.get('fecha', 'N/A')}\n"
-                                     f"Responsable: {datos.get('responsable', 'N/A')}",
-                                     border=0, align="L")
-        y_right = self.get_y()
-
-        # Ajustar Y a la columna más larga
-        self.set_y(max(y_left, y_right))
+        self.cell(0, 8, f"Cliente: {datos['cliente']}", ln=True)
+        self.cell(0, 8, f"Contacto: {datos['contacto']}", ln=True)
+        self.cell(0, 8, f"Propuesta: {datos['propuesta']}", ln=True)
+        self.cell(0, 8, f"Fecha: {datos['fecha']}", ln=True)
+        self.cell(0, 8, f"Responsable: {datos['responsable']}", ln=True)
         self.ln(5)
 
+    def tabla_productos(self, productos):
+        self.set_font("Helvetica", "B", 10)
+        self.cell(60, 8, "Producto", 1)
+        self.cell(20, 8, "Cantidad", 1, align="C")
+        self.cell(30, 8, "P. Unitario", 1, align="R")
+        self.cell(30, 8, "Descuento %", 1, align="R")
+        self.cell(40, 8, "Total", 1, ln=True, align="R")
 
-    def tabla_productos(self, productos_venta_df):
-        self.chapter_title("Detalle de Productos y Servicios")
-        self.set_fill_color(220, 220, 220) # Gris claro para cabecera
-        self.set_font("Helvetica", "B", 9)
-
-        # Definir anchos de columnas (ajustar para que sumen ~190mm)
-        w_prod = 75
-        w_qty = 15
-        w_unit = 25
-        w_list = 25
-        w_disc = 15
-        w_total = 30
-        h_cell = 7 # Altura de celda
-
-        # Cabecera
-        self.cell(w_prod, h_cell, "Producto / Servicio", 1, 0, "C", True)
-        self.cell(w_qty, h_cell, "Cant.", 1, 0, "C", True)
-        self.cell(w_unit, h_cell, "P. Unit. Lista", 1, 0, "C", True)
-        self.cell(w_list, h_cell, "P. Total Lista", 1, 0, "C", True)
-        self.cell(w_disc, h_cell, "Desc.%", 1, 0, "C", True)
-        self.cell(w_total, h_cell, "Total", 1, 1, "C", True) # ln=1 (salto de línea)
-
-        self.set_font("Helvetica", "", 9)
-        fill = False # Para alternar colores de fila
-        for index, row in productos_venta_df.iterrows():
-            # Formatear números
-            unit_price_str = f"${row['Precio Unit. Lista']:,.2f}"
-            list_price_str = f"${row['Precio Total Lista']:,.2f}"
-            discount_str = f"{row['Desc. %']:.1f}%"
-            total_price_str = f"${row['Precio Final']:,.2f}"
-
-            # MultiCell para productos largos (requiere calcular altura)
-            # Simplificación: usar Cell, podría cortar nombres largos. Para manejo robusto, se necesitaría calcular altura.
-            self.cell(w_prod, h_cell, str(row['Producto'])[:45], 1, 0, "L", fill) # Limitar longitud
-            self.cell(w_qty, h_cell, str(row['Cantidad']), 1, 0, "C", fill)
-            self.cell(w_unit, h_cell, unit_price_str, 1, 0, "R", fill)
-            self.cell(w_list, h_cell, list_price_str, 1, 0, "R", fill)
-            self.cell(w_disc, h_cell, discount_str, 1, 0, "R", fill)
-            self.cell(w_total, h_cell, total_price_str, 1, 1, "R", fill)
-            fill = not fill # Alternar color
-
+        self.set_font("Helvetica", "", 10)
+        for p in productos:
+            self.cell(60, 8, str(p["producto"]), 1)
+            self.cell(20, 8, str(p["cantidad"]), 1, align="C")
+            self.cell(30, 8, f"${p['precio_unitario']:,.2f}", 1, align="R")
+            self.cell(30, 8, f"{p['descuento_aplicado']}%", 1, align="R")
+            self.cell(40, 8, f"${p['precio_total']:,.2f}", 1, ln=True, align="R")
         self.ln(5)
 
     def totales(self, total_venta):
         self.set_font("Helvetica", "B", 12)
-        self.cell(0, 10, f"Total Propuesta (USD): ${total_venta:,.2f}", border="T", ln=True, align="R")
-        self.ln(5)
+        self.cell(0, 10, f"Total de la propuesta: ${total_venta:,.2f}", ln=True, align="R")
+        self.ln(10)
 
-    def condiciones(self, vigencia, condiciones_texto):
-        self.chapter_title("Condiciones Comerciales")
+    def condiciones(self, vigencia, condiciones):
         self.set_font("Helvetica", "", 9)
-        self.multi_cell(0, 5, f"Vigencia de la propuesta: {vigencia}\n\n{condiciones_texto}")
-        self.ln(5)
+        self.multi_cell(0, 6, f"Vigencia de la propuesta: {vigencia}\n")
+        self.multi_cell(0, 6, f"{condiciones}")
+        self.ln(10)
 
     def firma(self, responsable):
-        self.ln(10) # Espacio antes de la firma
         self.set_font("Helvetica", "", 10)
-        self.cell(0, 6, "Atentamente,", ln=True)
-        self.ln(8) # Espacio para firma manuscrita
-        self.cell(0, 6, responsable, ln=True)
-        self.cell(0, 6, self.company_name, ln=True)
+        self.cell(0, 8, "Atentamente,", ln=True)
+        self.cell(0, 8, responsable, ln=True)
+        self.cell(0, 8, "SYNAPPSSYS", ln=True)
+
+# Botón para generar PDF desde vista de detalle
+if 'cotizacion_id' in locals():
+    if st.button("📄 Generar PDF para cliente"):
+        pdf = CotizacionPDFConLogo()
+        pdf.add_page()
+
+        datos_dict = {
+            "cliente": datos["cliente"],
+            "contacto": datos["contacto"],
+            "propuesta": datos["propuesta"],
+            "fecha": datos["fecha"],
+            "responsable": datos["responsable"]
+        }
+        productos = df_venta.to_dict("records")
+        total_venta = datos["total_venta"]
+
+        pdf.encabezado_cliente(datos_dict)
+        pdf.tabla_productos(productos)
+        pdf.totales(total_venta)
+        pdf.condiciones(datos["vigencia"], datos["condiciones_comerciales"])
+        pdf.firma(datos["responsable"])
+
+        pdf_output_path = f"cotizacion_cliente_{cotizacion_id}.pdf"
+        pdf.output(pdf_output_path)
+        with open(pdf_output_path, "rb") as file:
+            st.download_button(
+                label="📥 Descargar PDF de cotización",
+                data=file,
+                file_name=pdf_output_path,
+                mime="application/pdf"
+            )
+
+# ... (resto del código sigue igual 1)
+
+# ... (resto del código sigue igual)
 
 
-# Botón para generar PDF (solo si se ha seleccionado un detalle)
-if cotizacion_id_seleccionada:
-    st.divider()
-    if st.button(f"📄 Generar PDF para Cliente (ID: {cotizacion_id_seleccionada})", key="generate_pdf"):
-        try:
-            # Re-conectar a la DB para obtener datos frescos para el PDF
-            conn_pdf = conectar_db()
-            datos_pdf_gen = pd.read_sql_query(f"SELECT * FROM cotizaciones WHERE id = {cotizacion_id_seleccionada}", conn_pdf).iloc[0]
-            df_venta_pdf = pd.read_sql_query(f"""
-                SELECT producto AS "Producto",
-                       cantidad AS "Cantidad",
-                       precio_unitario AS "Precio Unit. Lista",
-                       (precio_unitario * cantidad) AS "Precio Total Lista",
-                       descuento_aplicado AS "Desc. %",
-                       precio_total AS "Precio Final"
-                FROM detalle_productos
-                WHERE cotizacion_id = {cotizacion_id_seleccionada} AND tipo_origen = 'venta'
-            """, conn_pdf)
-            conn_pdf.close()
-
-            # Crear instancia del PDF
-            pdf = CotizacionPDFConLogo(logo_path="LOGO Syn Apps Sys_edited (2).png") # Asegúrate que la ruta al logo sea correcta
-            pdf.add_page()
-
-            # Llenar PDF
-            pdf.datos_cliente(datos_pdf_gen)
-            pdf.tabla_productos(df_venta_pdf)
-            pdf.totales(datos_pdf_gen["total_venta"])
-            pdf.condiciones(datos_pdf_gen["vigencia"], datos_pdf_gen["condiciones_comerciales"])
-            pdf.firma(datos_pdf_gen["responsable"])
-
-            # Guardar PDF temporalmente y ofrecer descarga
-            pdf_output_filename = f"Cotizacion_{datos_pdf_gen['cliente']}_{datos_pdf_gen['propuesta']}_{cotizacion_id_seleccionada}.pdf".replace(" ", "_").replace("/", "-")
-            pdf_output_path = os.path.join(APP_DIR, pdf_output_filename) # Guardar en el directorio de la app
-            pdf.output(pdf_output_path)
-
-            with open(pdf_output_path, "rb") as file:
-                st.download_button(
-                    label=f"📥 Descargar PDF: {pdf_output_filename}",
-                    data=file,
-                    file_name=pdf_output_filename, # Nombre que tendrá al descargar
-                    mime="application/pdf"
-                )
-            # Opcional: eliminar el archivo PDF del servidor después de ofrecer la descarga
-            # os.remove(pdf_output_path)
-
-        except FileNotFoundError:
-             st.error("❌ Error: No se encontró el archivo de logo para el PDF. Verifica la ruta 'LOGO Syn Apps Sys_edited (2).png'.")
-        except sqlite3.Error as e:
-            st.error(f"❌ Error de base de datos al generar PDF: {e}")
-        except Exception as e:
-            st.error(f"❌ Error inesperado al generar PDF: {e}")
-            import traceback
-            st.error(traceback.format_exc()) # Imprime más detalles del error
-
+DB_PATH = "crm_cotizaciones.sqlite"
