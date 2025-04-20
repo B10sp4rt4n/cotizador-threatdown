@@ -97,6 +97,30 @@ DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
 def inicializar_db():
     conn = sqlite3.connect(DB_PATH)
     cursor = conn.cursor()
+
+    # Crear tabla clientes
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS clientes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT,
+            apellido_paterno TEXT,
+            apellido_materno TEXT,
+            empresa TEXT,
+            correo TEXT,
+            telefono TEXT,
+            rfc TEXT,
+            calle TEXT,
+            numero_exterior TEXT,
+            numero_interior TEXT,
+            codigo_postal TEXT,
+            municipio TEXT,
+            ciudad TEXT,
+            estado TEXT,
+            notas TEXT
+        )
+    """)
+
+    # Crear tabla cotizaciones
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS cotizaciones (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -111,6 +135,8 @@ def inicializar_db():
             margen REAL
         )
     """)
+
+    # Crear tabla detalle_productos
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS detalle_productos (
             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -124,8 +150,8 @@ def inicializar_db():
             FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
         )
     """)
-    
-    # Verificar y agregar columnas nuevas si no existen
+
+    # Columnas adicionales si no existen
     columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
     if "vigencia" not in columnas:
         cursor.execute("ALTER TABLE cotizaciones ADD COLUMN vigencia TEXT;")
@@ -134,6 +160,12 @@ def inicializar_db():
 
     conn.commit()
     conn.close()
+
+
+
+
+
+
 
 def conectar_db():
     return sqlite3.connect(DB_PATH)
