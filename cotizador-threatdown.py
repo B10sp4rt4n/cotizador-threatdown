@@ -82,17 +82,114 @@ def mostrar_encabezado():
 # ========================
 # Generador de PDF
 # ========================
+# ========================
+# Generador de PDF Mejorado
+# ========================
 class CotizacionPDF(FPDF):
     def header(self):
         self.image(LOGO_PATH, x=10, y=8, w=40)
+        self.set_font("Helvetica", "B", 12)
+        
+        # Encabezado con datos del cliente
+        self.cell(0, 10, f"Cliente: {self.cliente}", ln=True)
+        self.cell(0, 10, f"Contacto: {self.contacto}", ln=True)
+        self.cell(0, 10, f"Propuesta: {self.propuesta}", ln=True)
+        self.cell(0, 10, f"Vigencia: {self.vigencia}", ln=True)
+        self.ln(10)
+        
+        # Título principal
         self.set_font("Helvetica", "B", 16)
-        self.cell(0, 10, "Reporte de Cotización", ln=True, align="C")
-        self.ln(20)
+        self.cell(0, 10, "Cotización Comercial", 0, 1, "C")
+        self.ln(5)
         
     def footer(self):
-        self.set_y(-15)
-        self.set_font("Helvetica", "I", 8)
-        self.cell(0, 10, f"Página {self.page_no()}", 0, 0, "C")
+        self.set_y(-40)
+        self.set_font("Helvetica", "I", 10)
+        
+        # Condiciones comerciales
+        self.multi_cell(0, 5, f"Condiciones Comerciales:\n{self.condiciones}")
+        self.ln(5)
+        
+        # Firmas
+        self.set_font("Helvetica", "B", 12)
+        self.cell(0, 10, f"Responsable: {self.responsable}", ln=True)
+        self.image("firma_synappssys.png", x=50, y=self.get_y(), w=100)  # Asegurar archivo firma.png
+        self.cell(0, 10, "SynAppsSys", 0, 0, "C")
+        
+    def tabla_productos(self, data):
+        self.set_font("Helvetica", "B", 10)
+        # Encabezados de la tabla
+        headers = [
+            "Cantidad", "Producto", "Periodo", 
+            "P. Unitario", "P. Lista", 
+            "Descuento %", "P. Final"
+        ]
+        col_widths = [20, 60, 20, 30, 30, 30, 30]
+        
+        # Crear encabezados
+        for header, width in zip(headers, col_widths):
+            self.cell(width, 10, header, 1, 0, "C")
+        self.ln()
+        
+        # Contenido de la tabla
+        self.set_font("Helvetica", "", 10)
+        total = 0
+        for item in data:
+            self.cell(col_widths[0], 10, str(item["cantidad"]), 1, 0, "C")
+            self.cell(col_widths[1], 10, item["producto"], 1)
+            self.cell(col_widths[2], 10, f"{self.periodo} meses", 1, 0, "C")
+            self.cell(col_widths[3], 10, f"${item['precio_venta']:.2f}", 1, 0, "R")
+            self.cell(col_widths[4], 10, f"${item['precio_lista']:.2f}", 1, 0, "R")
+            self.cell(col_widths[5], 10, f"{item['descuento_venta']:.1f}%", 1, 0, "C")
+            self.cell(col_widths[6], 10, f"${item['total_venta']:.2f}", 1, 0, "R")
+            self.ln()
+            total += item["total_venta"]
+        
+        # Total
+        self.set_font("Helvetica", "B", 10)
+        self.cell(sum(col_widths[:-1]), 10, "TOTAL:", 1, 0, "R")
+        self.cell(col_widths[-1], 10, f"${total:.2f}", 1, 0, "R")
+
+# Modificación en el bloque de generación de PDF
+if st.button("📄 Generar PDF"):
+    pdf = CotizacionPDF()
+    
+    # Agregar datos contextuales
+    pdf.cliente = df_historial.iloc[index]['cliente']
+    pdf.contacto = df_historial.iloc[index]['contacto']
+    pdf.propuesta = df_historial.iloc[index]['propuesta']
+    pdf.vigencia = df_historial.iloc[index]['vigencia']
+    pdf.condiciones = df_historial.iloc[index]['condiciones_comerciales']
+    pdf.responsable = df_historial.iloc[index]['responsable']
+    pdf.periodo = termino  # Variable del selectbox de plazo
+    
+    # Preparar datos para la tabla
+    detalle_pdf = []
+    for _, row in detalle_cotizacion.iterrows():
+        detalle_pdf.append({
+            "cantidad": row['cantidad'],
+            "producto": row['producto'],
+            "precio_venta": row['precio_venta'],
+            "precio_lista": row['precio_lista'],
+            "descuento_venta": row['descuento_venta'],
+            "total_venta": row['precio_venta'] * row['cantidad']
+        })
+    
+    # Generar documento
+    pdf.add_page()
+    pdf.tabla_productos(detalle_pdf)
+    
+    # Guardar y ofrecer descarga
+    pdf_output = f"cotizacion_{id_cotizacion}.pdf"
+    pdf.output(pdf_output)
+    
+    with open(pdf_output, "rb") as f:
+        st.download_button(
+            "⬇️ Descargar PDF Final",
+            data=f,
+            file_name=pdf_output,
+            mime="application/pdf"
+        )
 
 # ========================
 # Lógica principal
