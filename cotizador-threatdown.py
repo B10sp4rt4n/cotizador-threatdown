@@ -82,10 +82,15 @@ def mostrar_encabezado():
 # ========================
 # Lógica principal
 # ========================
-def main():
-    inicializar_db()
-    datos = mostrar_encabezado()
-    
+def inicializar_db():
+    with sqlite3.connect(DB_PATH) as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            CREATE TABLE IF NOT EXISTS cotizaciones (
+                # ... otras columnas ...
+                vigencia TEXT,
+                condiciones_comerciales TEXT  # ✅ Nombre exacto
+            )""")
     # Carga de precios
     df_precios = cargar_datos()
     
@@ -193,23 +198,31 @@ def main():
         
         # Guardar en base de datos
         if st.button("💾 Guardar Cotización", type="primary"):
-            with conectar_db() as conn:
-                cursor = conn.cursor()
-                
+    with conectar_db() as conn:
+        cursor = conn.cursor()
+        cursor.execute("""
+            INSERT INTO cotizaciones (
+                # ... otras columnas ...
+                condiciones_comerciales  # ✅ Nombre correcto
+            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                # ... otros valores ...
+                datos["condiciones_comerciales"]  # ✅ Clave correcta
+            ))
                 # Insertar cabecera
-                cursor.execute("""
-                    INSERT INTO cotizaciones (
-                        cliente, contacto, propuesta, fecha, responsable,
-                        total_lista, total_costo, total_venta,
-                        utilidad, margen, vigencia, condiciones_comerciales
+             cursor.execute("""
+                INSERT INTO cotizaciones (
+                    cliente, contacto, propuesta, fecha, responsable,
+                    total_lista, total_costo, total_venta,
+                    utilidad, margen, vigencia, condiciones_comerciales  # 🛠️ Nombre correcto
                     ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
                     (
-                        datos["cliente"], datos["contacto"], datos["propuesta"],
-                        datos["fecha"].isoformat(), datos["responsable"],
-                        df['total_lista'].sum(), df['total_costo'].sum(),
-                        df['total_venta'].sum(), utilidad, margen,
-                        datos["vigencia"], datos["condiciones"]
-                    ))
+                    datos["cliente"], datos["contacto"], datos["propuesta"],
+                    datos["fecha"].isoformat(), datos["responsable"],
+                    df['total_lista'].sum(), df['total_costo'].sum(),
+                    df['total_venta'].sum(), utilidad, margen,
+                    datos["vigencia"], datos["condiciones_comerciales"]  # 🔑 Clave corregida
+                  ))
                 
                 cotizacion_id = cursor.lastrowid
                 
