@@ -131,6 +131,11 @@ class CotizacionPDF(FPDF):
 # ========================
 # Lógica principal
 # ========================
+# (En el procesamiento de productos, aplicar lógica secuencial de descuentos: primero Item Disc, luego Channel Disc, luego Deal Reg Disc)
+
+# ========================
+# Lógica principal
+# ========================
 # (En el procesamiento de productos, aplicar lógica secuencial de descuentos y mostrar el resumen financiero incluyendo descuento acumulado efectivo)
 
 # ========================
