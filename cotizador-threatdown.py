@@ -106,7 +106,7 @@ class CotizacionPDF(FPDF):
     def tabla_productos(self, data):
         self.set_font("Helvetica", "B", 10)
         headers = ["Cantidad", "Producto", "Periodo", "P. Unitario", "P. Lista", "Descuento %", "P. Final"]
-        col_widths = [20, 60, 20, 30, 30, 30, 30]
+        col_widths = [20, 60, 25, 25, 25, 25, 25]
         for header, width in zip(headers, col_widths):
             self.cell(width, 10, header, 1, 0, "C")
         self.ln()
