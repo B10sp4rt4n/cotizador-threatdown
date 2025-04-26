@@ -262,23 +262,40 @@ def guardar_cotizacion(datos, productos_venta, productos_costo):
 DB_PATH = "crm_cotizaciones.sqlite"
 
 def agregar_cliente(datos):
+    """Agrega un nuevo cliente a la base de datos."""
     conn = conectar_db()
     cursor = conn.cursor()
-    cursor.execute("""
-        INSERT INTO clientes (
-            nombre, apellido_paterno, apellido_materno, empresa, correo, telefono,
-            rfc, calle, numero_exterior, numero_interior, codigo_postal,
-            municipio, ciudad, estado, notas
-        )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    """, (
-        datos["nombre"], datos["apellido_paterno"], datos["apellido_materno"], datos["empresa"],
-        datos["correo"], datos["telefono"], datos["rfc"], datos["calle"],
-        datos["numero_exterior"], datos["numero_interior"], datos["codigo_postal"],
-        datos["municipio"], datos["ciudad"], datos["estado"], datos["notas"]
-    ))
-    conn.commit()
-    conn.close()
+    try:
+        cursor.execute("""
+            INSERT INTO clientes (
+                nombre, apellido_paterno, apellido_materno, empresa, correo, telefono,
+                rfc, calle, numero_exterior, numero_interior, codigo_postal,
+                municipio, ciudad, estado, notas
+            )
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """, (
+            datos.get("nombre"),  # Usar .get() para evitar KeyError
+            datos.get("apellido_paterno"),
+            datos.get("apellido_materno"),
+            datos.get("empresa"),
+            datos.get("correo"),
+            datos.get("telefono"),
+            datos.get("rfc"),
+            datos.get("calle"),
+            datos.get("numero_exterior"),
+            datos.get("numero_interior"),
+            datos.get("codigo_postal"),
+            datos.get("municipio"),
+            datos.get("ciudad"),
+            datos.get("estado"),
+            datos.get("notas")
+        ))
+        conn.commit()
+    except sqlite3.Error as e:
+        print(f"[ERROR] Error al agregar cliente: {e}")  # Log del error
+        st.error(f"❌ Error al agregar el cliente: {e}")
+    finally:
+        conn.close()
 
 def mostrar_clientes():
     conn = conectar_db()
