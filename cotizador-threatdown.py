@@ -139,22 +139,27 @@ def main():
         with cols[0]: item_disc = st.number_input(f"Item Disc (%) - {prod}", 0.0, 100.0, 0.0)
         with cols[1]: channel_disc = st.number_input(f"Channel Disc (%) - {prod}", 0.0, 100.0, 0.0)
         with cols[2]: deal_disc = st.number_input(f"Deal Reg Disc (%) - {prod}", 0.0, 100.0, 0.0)
+        total_descuento = item_disc + channel_disc + deal_disc
         
-        # Cálculos
-        precio_final = precio_base * (1 - item_disc/100) * (1 - (channel_disc + deal_disc)/100)
-        subtotal = precio_final * cantidad
+        # Nuevos cálculos con descuento total
+        precio_total_lista = precio_base * cantidad
+        monto_descuento = precio_total_lista * (total_descuento / 100)
+        precio_final = precio_total_lista - monto_descuento
         
         costos.append({
             "Producto": prod, "Cantidad": cantidad, 
             "Precio Base": precio_base, "Item Disc. %": item_disc,
-            "Subtotal": round(subtotal, 2)
+            "Subtotal": round(precio_final, 2)
         })
         
         ventas.append({
-            "Producto": prod, "Cantidad": cantidad,
-            "Precio Unitario de Lista": precio_base,
-            "Descuento %": item_disc + channel_disc + deal_disc,
-            "Precio Total con Descuento": round(subtotal, 2)
+            "Producto": prod,
+            "Cantidad": cantidad,
+            "Precio Unitario Lista": round(precio_base, 2),
+            "Precio Total Lista": round(precio_total_lista, 2),
+            "Descuento %": total_descuento,
+            "Monto Descuento": round(monto_descuento, 2),
+            "Precio Total con Descuento": round(precio_final, 2)
         })
     
     # Mostrar resultados
@@ -162,11 +167,25 @@ def main():
         df_costos = pd.DataFrame(costos)
         df_ventas = pd.DataFrame(ventas)
         
-        st.subheader("Resumen de Costos")
-        st.dataframe(df_costos)
+        st.subheader("📊 Resumen de Costos")
+        st.dataframe(df_costos.style.format({
+            'Precio Base': '${:.2f}',
+            'Subtotal': '${:.2f}'
+        }))
         
-        st.subheader("Resumen de Ventas")
-        st.dataframe(df_ventas)
+        st.subheader("📈 Resumen de Ventas")
+        column_order = [
+            'Producto', 'Cantidad', 'Precio Unitario Lista', 
+            'Precio Total Lista', 'Descuento %', 'Monto Descuento', 
+            'Precio Total con Descuento'
+        ]
+        st.dataframe(df_ventas[column_order].style.format({
+            'Precio Unitario Lista': '${:,.2f}',
+            'Precio Total Lista': '${:,.2f}',
+            'Descuento %': '{:.2f}%',
+            'Monto Descuento': '${:,.2f}',
+            'Precio Total con Descuento': '${:,.2f}'
+        }))
         
         # Cálculo de utilidad
         total_venta = df_ventas["Precio Total con Descuento"].sum()
@@ -174,10 +193,12 @@ def main():
         utilidad = total_venta - total_costo
         margen = (utilidad / total_venta) * 100 if total_venta > 0 else 0
         
-        st.subheader("Rentabilidad")
-        col1, col2 = st.columns(2)
-        col1.metric("Utilidad Total", f"${utilidad:,.2f}")
-        col2.metric("Margen (%)", f"{margen:.2f}%")
+        st.subheader("💰 Rentabilidad")
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Venta", f"${total_venta:,.2f}")
+        col2.metric("Total Costo", f"${total_costo:,.2f}")
+        col3.metric("Utilidad Neta", f"${utilidad:,.2f}")
+        st.metric("**Margen de Ganancia**", f"{margen:.2f}%")
         
         # Guardar en base de datos
         if st.button("💾 Guardar Cotización"):
@@ -203,7 +224,7 @@ def main():
                 
                 cotizacion_id = cursor.lastrowid
                 
-                # Insertar detalles
+                # Insertar detalles de venta
                 for producto in df_ventas.to_dict("records"):
                     cursor.execute("""
                         INSERT INTO detalle_productos (
@@ -211,10 +232,11 @@ def main():
                             precio_total, descuento_aplicado, tipo_origen
                         ) VALUES (?,?,?,?,?,?,?)""",
                         (cotizacion_id, producto["Producto"], producto["Cantidad"],
-                         producto["Precio Unitario de Lista"],
+                         producto["Precio Unitario Lista"],
                          producto["Precio Total con Descuento"],
                          producto["Descuento %"], 'venta'))
                 
+                # Insertar detalles de costo
                 for producto in df_costos.to_dict("records"):
                     cursor.execute("""
                         INSERT INTO detalle_productos (
@@ -227,7 +249,7 @@ def main():
                          producto["Item Disc. %"], 'costo'))
                 
                 conn.commit()
-                st.success("Cotización guardada exitosamente!")
+                st.success("✅ Cotización guardada exitosamente!")
 
 if __name__ == "__main__":
     main()
