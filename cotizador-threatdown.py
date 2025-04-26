@@ -104,9 +104,9 @@ class CotizacionPDF(FPDF):
         self.cell(0, 10, "SynAppsSys", 0, 0, "C")
 
     def tabla_productos(self, data):
-        self.set_font("Helvetica", "B", 9)
-        headers = ["Cant.", "Producto", "Periodo", "P. Unitario", "P. Lista", "Desc %", "P. Final"]
-        col_widths = [20, 60, 22, 22, 22, 22, 22]
+        self.set_font("Helvetica", "B", 10)
+        headers = ["Cantidad", "Producto", "Periodo", "P. Unitario", "P. Lista", "Descuento %", "P. Final"]
+        col_widths = [20, 60, 20, 30, 30, 30, 30]
         for header, width in zip(headers, col_widths):
             self.cell(width, 10, header, 1, 0, "C")
         self.ln()
@@ -127,6 +127,11 @@ class CotizacionPDF(FPDF):
         self.set_font("Helvetica", "B", 10)
         self.cell(sum(col_widths[:-1]), 10, "TOTAL:", 1, 0, "R")
         self.cell(col_widths[-1], 10, f"${total:.2f}", 1, 0, "R")
+
+# ========================
+# Lógica principal
+# ========================
+# (En el procesamiento de productos, aplicar lógica secuencial de descuentos y mostrar el resumen financiero incluyendo descuento acumulado efectivo)
 
 # ========================
 # Lógica principal
