@@ -9,7 +9,7 @@ from fpdf import FPDF
 # Configuración inicial
 # ========================
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
-LOGO_PATH = "LOGO Syn Apps Sys_edited (2).png"
+LOGO_PATH = "logo_empresa.png"  # Cambiar por tu ruta de logo
 
 # ========================
 # Funciones de base de datos
@@ -19,29 +19,26 @@ def inicializar_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         
+        # Tabla principal de cotizaciones
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS cotizaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 cliente TEXT, contacto TEXT, propuesta TEXT,
-                fecha TEXT, responsable TEXT, total_venta REAL,
-                total_costo REAL, utilidad REAL, margen REAL,
+                fecha TEXT, responsable TEXT, 
+                total_lista REAL, total_costo REAL, total_venta REAL,
+                utilidad REAL, margen REAL,
                 vigencia TEXT, condiciones_comerciales TEXT
             )""")
         
+        # Tabla de detalle de productos
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detalle_productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 cotizacion_id INTEGER, producto TEXT, cantidad INTEGER,
-                precio_unitario REAL, precio_total REAL,
-                descuento_aplicado REAL, tipo_origen TEXT,
+                precio_lista REAL, descuento_costo REAL, costo REAL,
+                descuento_venta REAL, precio_venta REAL,
                 FOREIGN KEY (cotizacion_id) REFERENCES cotizaciones(id)
             )""")
-
-        # Verificar y agregar columnas nuevas
-        columnas = [col[1] for col in cursor.execute("PRAGMA table_info(cotizaciones)").fetchall()]
-        for columna in ['vigencia', 'condiciones_comerciales']:
-            if columna not in columnas:
-                cursor.execute(f"ALTER TABLE cotizaciones ADD COLUMN {columna} TEXT;")
 
 def conectar_db():
     return sqlite3.connect(DB_PATH)
@@ -65,191 +62,174 @@ def cargar_datos():
         st.stop()
 
 # ========================
-# Componentes reutilizables
+# Componentes de la interfaz
 # ========================
 def mostrar_encabezado():
-    st.title("Cotizador ThreatDown con CRM")
+    st.title("🛒 Cotizador ThreatDown Professional")
     with st.sidebar:
-        st.header("Datos de la cotización")
+        st.header("📋 Datos Comerciales")
         return {
             "cliente": st.text_input("Cliente"),
-            "contacto": st.text_input("Nombre de contacto"),
-            "propuesta": st.text_input("Nombre de la propuesta"),
+            "contacto": st.text_input("Contacto"),
+            "propuesta": st.text_input("Propuesta"),
             "fecha": st.date_input("Fecha", value=date.today()),
-            "responsable": st.text_input("Responsable / Vendedor")
+            "responsable": st.text_input("Responsable"),
+            "vigencia": st.text_input("Vigencia", value="30 días"),
+            "condiciones": st.text_area("Condiciones Comerciales", 
+                                      value="Precios en USD. Pago contra entrega.")
         }
-
-def mostrar_condiciones():
-    col1, col2 = st.columns(2)
-    with col1:
-        vigencia = st.text_input("Vigencia de la propuesta", value="30 días")
-    with col2:
-        condiciones = st.text_area(
-            "Condiciones Comerciales",
-            value="Precios en USD. Pago contra entrega. No incluye impuestos.",
-            height=100
-        )
-    return vigencia, condiciones
 
 # ========================
 # Lógica principal
 # ========================
 def main():
     inicializar_db()
-    datos_cliente = mostrar_encabezado()
-    vigencia, condiciones = mostrar_condiciones()
+    datos = mostrar_encabezado()
     
     # Carga de precios
     df_precios = cargar_datos()
     
     # Selección de productos
     termino = st.selectbox(
-        "Plazo del servicio (meses):",
+        "📅 Plazo de servicio (meses):",
         options=sorted(df_precios["Term (Month)"].dropna().unique())
     )
     
     df_filtrado = df_precios[df_precios["Term (Month)"] == termino]
-    productos_seleccionados = st.multiselect(
-        "Productos a cotizar:",
-        df_filtrado["Product Title"].unique()
-    )
+    productos = df_filtrado["Product Title"].unique()
+    seleccionados = st.multiselect("🔍 Seleccionar productos", productos)
     
     # Procesamiento de productos
-    costos = []
-    ventas = []
-    
-    for prod in productos_seleccionados:
-        df_producto = df_filtrado[df_filtrado["Product Title"] == prod]
-        cantidad = st.number_input(f"Cantidad de '{prod}':", min_value=1, value=1)
+    detalle = []
+    for producto in seleccionados:
+        st.divider()
+        st.subheader(f"📦 {producto}")
+        
+        # Obtener precio base
+        df_producto = df_filtrado[df_filtrado["Product Title"] == producto]
+        cantidad = st.number_input(f"Cantidad", min_value=1, value=1, key=f"cant_{producto}")
         
         # Validar rango de cantidad
         rango_valido = df_producto[
             (df_producto["Tier Min"] <= cantidad) & 
             (df_producto["Tier Max"] >= cantidad)
         ]
-        
         if rango_valido.empty:
-            st.warning(f"Rango no válido para {prod} con cantidad {cantidad}")
+            st.error("⛔ Cantidad fuera de rango válido")
             continue
             
-        precio_base = rango_valido.iloc[0]["MSRP USD"]
+        precio_lista = rango_valido.iloc[0]["MSRP USD"]
         
-        # Inputs de descuentos
-        cols = st.columns(3)
-        with cols[0]: item_disc = st.number_input(f"Item Disc (%) - {prod}", 0.0, 100.0, 0.0)
-        with cols[1]: channel_disc = st.number_input(f"Channel Disc (%) - {prod}", 0.0, 100.0, 0.0)
-        with cols[2]: deal_disc = st.number_input(f"Deal Reg Disc (%) - {prod}", 0.0, 100.0, 0.0)
-        total_descuento = item_disc + channel_disc + deal_disc
+        # Sección de descuentos
+        col1, col2 = st.columns(2)
+        with col1:
+            st.markdown("#### 💼 Descuentos para Costo")
+            item_disc = st.number_input("Item Disc (%)", 0.0, 100.0, 0.0, key=f"item_{producto}")
+            channel_disc = st.number_input("Channel Disc (%)", 0.0, 100.0, 0.0, key=f"channel_{producto}")
+            deal_disc = st.number_input("Deal Reg Disc (%)", 0.0, 100.0, 0.0, key=f"deal_{producto}")
+            descuento_costo = item_disc + channel_disc + deal_disc
+            
+        with col2:
+            st.markdown("#### 💰 Descuento para Venta")
+            max_venta_disc = min(descuento_costo, 100.0)  # No puede superar el descuento de costo
+            venta_disc = st.number_input(
+                "Descuento Venta (%)", 
+                0.0, 
+                max_venta_disc,
+                0.0,
+                key=f"venta_{producto}",
+                help=f"Máximo permitido: {max_venta_disc}% según descuentos de costo"
+            )
         
-        # Nuevos cálculos con descuento total
-        precio_total_lista = precio_base * cantidad
-        monto_descuento = precio_total_lista * (total_descuento / 100)
-        precio_final = precio_total_lista - monto_descuento
+        # Cálculos financieros
+        costo_unitario = precio_lista * (1 - descuento_costo/100)
+        precio_venta_unitario = precio_lista * (1 - venta_disc/100)
         
-        costos.append({
-            "Producto": prod, "Cantidad": cantidad, 
-            "Precio Base": precio_base, "Item Disc. %": item_disc,
-            "Subtotal": round(precio_final, 2)
-        })
-        
-        ventas.append({
-            "Producto": prod,
-            "Cantidad": cantidad,
-            "Precio Unitario Lista": round(precio_base, 2),
-            "Precio Total Lista": round(precio_total_lista, 2),
-            "Descuento %": total_descuento,
-            "Monto Descuento": round(monto_descuento, 2),
-            "Precio Total con Descuento": round(precio_final, 2)
+        detalle.append({
+            "producto": producto,
+            "cantidad": cantidad,
+            "precio_lista": precio_lista,
+            "descuento_costo": descuento_costo,
+            "costo_unitario": costo_unitario,
+            "descuento_venta": venta_disc,
+            "precio_venta": precio_venta_unitario,
+            "total_lista": precio_lista * cantidad,
+            "total_costo": costo_unitario * cantidad,
+            "total_venta": precio_venta_unitario * cantidad
         })
     
-    # Mostrar resultados
-    if costos and ventas:
-        df_costos = pd.DataFrame(costos)
-        df_ventas = pd.DataFrame(ventas)
+    if detalle:
+        df = pd.DataFrame(detalle)
         
-        st.subheader("📊 Resumen de Costos")
-        st.dataframe(df_costos.style.format({
-            'Precio Base': '${:.2f}',
-            'Subtotal': '${:.2f}'
-        }))
+        # Resumen financiero
+        st.divider()
+        st.subheader("📊 Resumen Financiero")
         
-        st.subheader("📈 Resumen de Ventas")
-        column_order = [
-            'Producto', 'Cantidad', 'Precio Unitario Lista', 
-            'Precio Total Lista', 'Descuento %', 'Monto Descuento', 
-            'Precio Total con Descuento'
-        ]
-        st.dataframe(df_ventas[column_order].style.format({
-            'Precio Unitario Lista': '${:,.2f}',
-            'Precio Total Lista': '${:,.2f}',
-            'Descuento %': '{:.2f}%',
-            'Monto Descuento': '${:,.2f}',
-            'Precio Total con Descuento': '${:,.2f}'
-        }))
+        # Métricas clave
+        col1, col2, col3 = st.columns(3)
+        col1.metric("Total Lista", f"${df['total_lista'].sum():,.2f}")
+        col2.metric("Total Costo", f"${df['total_costo'].sum():,.2f}", 
+                   delta=f"-{df['descuento_costo'].mean():.1f}% descuento costo")
+        col3.metric("Total Venta", f"${df['total_venta'].sum():,.2f}", 
+                   delta=f"-{df['descuento_venta'].mean():.1f}% descuento venta")
         
         # Cálculo de utilidad
-        total_venta = df_ventas["Precio Total con Descuento"].sum()
-        total_costo = df_costos["Subtotal"].sum()
-        utilidad = total_venta - total_costo
-        margen = (utilidad / total_venta) * 100 if total_venta > 0 else 0
+        utilidad = df['total_venta'].sum() - df['total_costo'].sum()
+        margen = (utilidad / df['total_venta'].sum()) * 100 if df['total_venta'].sum() > 0 else 0
+        st.success(f"## 🏆 Resultado Final: Utilidad ${utilidad:,.2f} | Margen {margen:.1f}%")
         
-        st.subheader("💰 Rentabilidad")
-        col1, col2, col3 = st.columns(3)
-        col1.metric("Total Venta", f"${total_venta:,.2f}")
-        col2.metric("Total Costo", f"${total_costo:,.2f}")
-        col3.metric("Utilidad Neta", f"${utilidad:,.2f}")
-        st.metric("**Margen de Ganancia**", f"{margen:.2f}%")
+        # Detalle tabular
+        st.subheader("🔍 Detalle por Producto")
+        st.dataframe(df.style.format({
+            'precio_lista': '${:.2f}',
+            'costo_unitario': '${:.2f}',
+            'precio_venta': '${:.2f}',
+            'total_lista': '${:,.2f}',
+            'total_costo': '${:,.2f}',
+            'total_venta': '${:,.2f}',
+            'descuento_costo': '{:.1f}%',
+            'descuento_venta': '{:.1f}%'
+        }))
         
         # Guardar en base de datos
-        if st.button("💾 Guardar Cotización"):
-            datos = {
-                **datos_cliente,
-                "total_venta": total_venta,
-                "total_costo": total_costo,
-                "utilidad": utilidad,
-                "margen": margen,
-                "vigencia": vigencia,
-                "condiciones_comerciales": condiciones
-            }
-            
+        if st.button("💾 Guardar Cotización", type="primary"):
             with conectar_db() as conn:
                 cursor = conn.cursor()
+                
+                # Insertar cabecera
                 cursor.execute("""
                     INSERT INTO cotizaciones (
                         cliente, contacto, propuesta, fecha, responsable,
-                        total_venta, total_costo, utilidad, margen,
-                        vigencia, condiciones_comerciales
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?)""",
-                    tuple(datos.values()))
+                        total_lista, total_costo, total_venta,
+                        utilidad, margen, vigencia, condiciones_comerciales
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        datos["cliente"], datos["contacto"], datos["propuesta"],
+                        datos["fecha"].isoformat(), datos["responsable"],
+                        df['total_lista'].sum(), df['total_costo'].sum(),
+                        df['total_venta'].sum(), utilidad, margen,
+                        datos["vigencia"], datos["condiciones"]
+                    ))
                 
                 cotizacion_id = cursor.lastrowid
                 
-                # Insertar detalles de venta
-                for producto in df_ventas.to_dict("records"):
+                # Insertar detalle
+                for item in detalle:
                     cursor.execute("""
                         INSERT INTO detalle_productos (
-                            cotizacion_id, producto, cantidad, precio_unitario,
-                            precio_total, descuento_aplicado, tipo_origen
-                        ) VALUES (?,?,?,?,?,?,?)""",
-                        (cotizacion_id, producto["Producto"], producto["Cantidad"],
-                         producto["Precio Unitario Lista"],
-                         producto["Precio Total con Descuento"],
-                         producto["Descuento %"], 'venta'))
-                
-                # Insertar detalles de costo
-                for producto in df_costos.to_dict("records"):
-                    cursor.execute("""
-                        INSERT INTO detalle_productos (
-                            cotizacion_id, producto, cantidad, precio_unitario,
-                            precio_total, descuento_aplicado, tipo_origen
-                        ) VALUES (?,?,?,?,?,?,?)""",
-                        (cotizacion_id, producto["Producto"], producto["Cantidad"],
-                         producto["Precio Base"],
-                         producto["Subtotal"],
-                         producto["Item Disc. %"], 'costo'))
+                            cotizacion_id, producto, cantidad,
+                            precio_lista, descuento_costo, costo,
+                            descuento_venta, precio_venta
+                        ) VALUES (?,?,?,?,?,?,?,?)""",
+                        (
+                            cotizacion_id, item["producto"], item["cantidad"],
+                            item["precio_lista"], item["descuento_costo"],
+                            item["costo_unitario"], item["descuento_venta"],
+                            item["precio_venta"]
+                        ))
                 
                 conn.commit()
-                st.success("✅ Cotización guardada exitosamente!")
+                st.toast("✅ Cotización guardada exitosamente!")
 
 if __name__ == "__main__":
     main()
