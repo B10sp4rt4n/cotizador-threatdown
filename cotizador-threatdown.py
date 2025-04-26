@@ -232,9 +232,6 @@ def main():
                 conn.commit()
                 st.toast("✅ Cotización guardada exitosamente!")
 
-    # ========================
-    # Historial de Cotizaciones
-    # ========================
     st.divider()
     st.subheader("📂 Historial de Cotizaciones")
 
@@ -248,63 +245,47 @@ def main():
         ]
         seleccion = st.selectbox("Seleccionar cotización:", opciones)
 
+        if seleccion:
+            index = opciones.index(seleccion)
+            id_cotizacion = df_historial.iloc[index]['id']
 
-    if seleccion:
-        index = opciones.index(seleccion)
-        id_cotizacion = df_historial.iloc[index]['id']
+            detalle_cotizacion = pd.read_sql_query(
+                f"""
+                SELECT producto, cantidad, precio_lista, descuento_costo, costo, descuento_venta, precio_venta
+                FROM detalle_productos WHERE cotizacion_id = {id_cotizacion}
+                """, conn)
 
-        detalle_cotizacion = pd.read_sql_query(
-            f"""
-            SELECT producto, cantidad, precio_lista, 
-                   descuento_costo, costo, descuento_venta, precio_venta
-            FROM detalle_productos 
-            WHERE cotizacion_id = {id_cotizacion}
-            """, conn
-        )
+            st.subheader("📄 Detalles de la Cotización")
+            st.dataframe(detalle_cotizacion)
 
-        st.subheader("📄 Detalles de la Cotización")
-        st.dataframe(detalle_cotizacion)
+            if st.button("📄 Generar PDF"):
+                pdf = CotizacionPDF()
+                pdf.cliente = df_historial.iloc[index]['cliente']
+                pdf.contacto = df_historial.iloc[index]['contacto']
+                pdf.propuesta = df_historial.iloc[index]['propuesta']
+                pdf.vigencia = df_historial.iloc[index]['vigencia']
+                pdf.condiciones = df_historial.iloc[index]['condiciones_comerciales']
+                pdf.responsable = df_historial.iloc[index]['responsable']
+                pdf.periodo = termino
+                pdf.add_page()
 
-        # ⚡ SOLO AQUÍ agregas el botón para generar PDF
-        if st.button("📄 Generar PDF"):
-            pdf = CotizacionPDF()
-            pdf.cliente = df_historial.iloc[index]['cliente']
-            pdf.contacto = df_historial.iloc[index]['contacto']
-            pdf.propuesta = df_historial.iloc[index]['propuesta']
-            pdf.vigencia = df_historial.iloc[index]['vigencia']
-            pdf.condiciones = df_historial.iloc[index]['condiciones_comerciales']
-            pdf.responsable = df_historial.iloc[index]['responsable']
-            pdf.periodo = termino
+                detalle_pdf = []
+                for _, row in detalle_cotizacion.iterrows():
+                    detalle_pdf.append({
+                        "cantidad": row['cantidad'],
+                        "producto": row['producto'],
+                        "precio_venta": row['precio_venta'],
+                        "precio_lista": row['precio_lista'],
+                        "descuento_venta": row['descuento_venta'],
+                        "total_venta": row['precio_venta'] * row['cantidad']
+                    })
+                pdf.tabla_productos(detalle_pdf)
 
-            pdf.add_page()
+                pdf_output = f"cotizacion_{id_cotizacion}.pdf"
+                pdf.output(pdf_output)
 
-            detalle_pdf = []
-            for _, row in detalle_cotizacion.iterrows():
-                detalle_pdf.append({
-                    "cantidad": row['cantidad'],
-                    "producto": row['producto'],
-                    "precio_venta": row['precio_venta'],
-                    "precio_lista": row['precio_lista'],
-                    "descuento_venta": row['descuento_venta'],
-                    "total_venta": row['precio_venta'] * row['cantidad']
-                })
-
-            pdf.tabla_productos(detalle_pdf)
-
-            pdf_output = f"cotizacion_{id_cotizacion}.pdf"
-            pdf.output(pdf_output)
-
-            with open(pdf_output, "rb") as f:
-                st.download_button(
-                    "⬇️ Descargar PDF Final",
-                    data=f,
-                    file_name=pdf_output,
-                    mime="application/pdf"
-                )
-
-
-
-      
+                with open(pdf_output, "rb") as f:
+                    st.download_button("⬇️ Descargar PDF Final", data=f, file_name=pdf_output, mime="application/pdf")
     else:
         st.info("No hay cotizaciones guardadas en el historial")
 
