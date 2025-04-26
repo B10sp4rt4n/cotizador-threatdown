@@ -104,9 +104,9 @@ class CotizacionPDF(FPDF):
         self.cell(0, 10, "SynAppsSys", 0, 0, "C")
 
     def tabla_productos(self, data):
-        self.set_font("Helvetica", "B", 10)
-        headers = ["Cantidad", "Producto", "Periodo", "P. Unitario", "P. Lista", "Desc %", "P. Final"]
-        col_widths = [20, 60, 24, 24, 24, 24, 24]
+        self.set_font("Helvetica", "B", 9)
+        headers = ["Cant.", "Producto", "Periodo", "P. Unitario", "P. Lista", "Desc %", "P. Final"]
+        col_widths = [20, 60, 22, 22, 22, 22, 22]
         for header, width in zip(headers, col_widths):
             self.cell(width, 10, header, 1, 0, "C")
         self.ln()
