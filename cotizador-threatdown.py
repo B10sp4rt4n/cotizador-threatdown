@@ -15,10 +15,8 @@ LOGO_PATH = "LOGO Syn Apps Sys_edited (2).png"
 # Funciones de base de datos
 # ========================
 def inicializar_db():
-    """Crea la estructura inicial de la base de datos"""
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS cotizaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -28,7 +26,6 @@ def inicializar_db():
                 utilidad REAL, margen REAL,
                 vigencia TEXT, condiciones_comerciales TEXT
             )""")
-        
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detalle_productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -46,7 +43,6 @@ def conectar_db():
 # ========================
 @st.cache_data
 def cargar_datos():
-    """Carga y prepara los datos desde el archivo Excel"""
     try:
         df = pd.read_excel("precios_threatdown.xlsx")
         df["Tier Min"] = pd.to_numeric(df["Tier Min"], errors="coerce")
@@ -82,56 +78,39 @@ def mostrar_encabezado():
 # ========================
 # Generador de PDF
 # ========================
-# ========================
-# Generador de PDF Mejorado
-# ========================
 class CotizacionPDF(FPDF):
     def header(self):
-        self.image(LOGO_PATH, x=10, y=8, w=40)
+        if os.path.exists(LOGO_PATH):
+            self.image(LOGO_PATH, x=10, y=8, w=40)
         self.set_font("Helvetica", "B", 12)
-        
-        # Encabezado con datos del cliente
         self.cell(0, 10, f"Cliente: {self.cliente}", ln=True)
         self.cell(0, 10, f"Contacto: {self.contacto}", ln=True)
         self.cell(0, 10, f"Propuesta: {self.propuesta}", ln=True)
         self.cell(0, 10, f"Vigencia: {self.vigencia}", ln=True)
         self.ln(10)
-        
-        # Título principal
         self.set_font("Helvetica", "B", 16)
         self.cell(0, 10, "Cotización Comercial", 0, 1, "C")
         self.ln(5)
-        
+
     def footer(self):
         self.set_y(-40)
         self.set_font("Helvetica", "I", 10)
-        
-        # Condiciones comerciales
         self.multi_cell(0, 5, f"Condiciones Comerciales:\n{self.condiciones}")
         self.ln(5)
-        
-        # Firmas
         self.set_font("Helvetica", "B", 12)
         self.cell(0, 10, f"Responsable: {self.responsable}", ln=True)
-        self.image("firma_synappssys.png", x=50, y=self.get_y(), w=100)  # Asegurar archivo firma.png
+        if os.path.exists("firma_synappssys.png"):
+            self.image("firma_synappssys.png", x=50, y=self.get_y(), w=100)
         self.cell(0, 10, "SynAppsSys", 0, 0, "C")
-        
+
     def tabla_productos(self, data):
         self.set_font("Helvetica", "B", 10)
-        # Encabezados de la tabla
-        headers = [
-            "Cantidad", "Producto", "Periodo", 
-            "P. Unitario", "P. Lista", 
-            "Descuento %", "P. Final"
-        ]
+        headers = ["Cantidad", "Producto", "Periodo", "P. Unitario", "P. Lista", "Descuento %", "P. Final"]
         col_widths = [20, 60, 20, 30, 30, 30, 30]
-        
-        # Crear encabezados
         for header, width in zip(headers, col_widths):
             self.cell(width, 10, header, 1, 0, "C")
         self.ln()
-        
-        # Contenido de la tabla
+
         self.set_font("Helvetica", "", 10)
         total = 0
         for item in data:
@@ -144,56 +123,10 @@ class CotizacionPDF(FPDF):
             self.cell(col_widths[6], 10, f"${item['total_venta']:.2f}", 1, 0, "R")
             self.ln()
             total += item["total_venta"]
-        
-        # Total
+
         self.set_font("Helvetica", "B", 10)
         self.cell(sum(col_widths[:-1]), 10, "TOTAL:", 1, 0, "R")
         self.cell(col_widths[-1], 10, f"${total:.2f}", 1, 0, "R")
-
-# Modificación en el bloque de generación de PDF
-if st.button(
-    "📄 Generar PDF",
-    key=f"pdf_button_{id_cotizacion}",  # Key único
-    help="Generar documento PDF de esta cotización"
-):
-    # ... (código de generación de PDF)
-    
-    # Agregar datos contextuales
-    pdf.cliente = df_historial.iloc[index]['cliente']
-    pdf.contacto = df_historial.iloc[index]['contacto']
-    pdf.propuesta = df_historial.iloc[index]['propuesta']
-    pdf.vigencia = df_historial.iloc[index]['vigencia']
-    pdf.condiciones = df_historial.iloc[index]['condiciones_comerciales']
-    pdf.responsable = df_historial.iloc[index]['responsable']
-    pdf.periodo = termino  # Variable del selectbox de plazo
-    
-    # Preparar datos para la tabla
-    detalle_pdf = []
-    for _, row in detalle_cotizacion.iterrows():
-        detalle_pdf.append({
-            "cantidad": row['cantidad'],
-            "producto": row['producto'],
-            "precio_venta": row['precio_venta'],
-            "precio_lista": row['precio_lista'],
-            "descuento_venta": row['descuento_venta'],
-            "total_venta": row['precio_venta'] * row['cantidad']
-        })
-    
-    # Generar documento
-    pdf.add_page()
-    pdf.tabla_productos(detalle_pdf)
-    
-    # Guardar y ofrecer descarga
-    pdf_output = f"cotizacion_{id_cotizacion}.pdf"
-    pdf.output(pdf_output)
-    
-    with open(pdf_output, "rb") as f:
-        st.download_button(
-            "⬇️ Descargar PDF Final",
-            data=f,
-            file_name=pdf_output,
-            mime="application/pdf"
-        )
 
 # ========================
 # Lógica principal
@@ -201,42 +134,29 @@ if st.button(
 def main():
     inicializar_db()
     datos = mostrar_encabezado()
-    
-    # Carga de precios
     df_precios = cargar_datos()
-    
-    # Selección de productos
-    termino = st.selectbox(
-        "📅 Plazo de servicio (meses):",
-        options=sorted(df_precios["Term (Month)"].dropna().unique())
-    )
-    
+
+    termino = st.selectbox("📅 Plazo de servicio (meses):", options=sorted(df_precios["Term (Month)"].dropna().unique()))
+
     df_filtrado = df_precios[df_precios["Term (Month)"] == termino]
     productos = df_filtrado["Product Title"].unique()
     seleccionados = st.multiselect("🔍 Seleccionar productos", productos)
-    
-    # Procesamiento de productos
+
     detalle = []
     for producto in seleccionados:
         st.divider()
         st.subheader(f"📦 {producto}")
-        
-        # Obtener precio base
+
         df_producto = df_filtrado[df_filtrado["Product Title"] == producto]
         cantidad = st.number_input(f"Cantidad", min_value=1, value=1, key=f"cant_{producto}")
-        
-        # Validar rango de cantidad
-        rango_valido = df_producto[
-            (df_producto["Tier Min"] <= cantidad) & 
-            (df_producto["Tier Max"] >= cantidad)
-        ]
+
+        rango_valido = df_producto[(df_producto["Tier Min"] <= cantidad) & (df_producto["Tier Max"] >= cantidad)]
         if rango_valido.empty:
             st.error("⛔ Cantidad fuera de rango válido")
             continue
-            
+
         precio_lista = rango_valido.iloc[0]["MSRP USD"]
-        
-        # Sección de descuentos
+
         col1, col2 = st.columns(2)
         with col1:
             st.markdown("#### 💼 Descuentos para Costo")
@@ -244,23 +164,14 @@ def main():
             channel_disc = st.number_input("Channel Disc (%)", 0.0, 100.0, 0.0, key=f"channel_{producto}")
             deal_disc = st.number_input("Deal Reg Disc (%)", 0.0, 100.0, 0.0, key=f"deal_{producto}")
             descuento_costo = item_disc + channel_disc + deal_disc
-            
         with col2:
             st.markdown("#### 💰 Descuento para Venta")
             max_venta_disc = min(descuento_costo, 100.0)
-            venta_disc = st.number_input(
-                "Descuento Venta (%)", 
-                0.0, 
-                max_venta_disc,
-                0.0,
-                key=f"venta_{producto}",
-                help=f"Máximo permitido: {max_venta_disc}%"
-            )
-        
-        # Cálculos financieros
+            venta_disc = st.number_input("Descuento Venta (%)", 0.0, max_venta_disc, 0.0, key=f"venta_{producto}")
+
         costo_unitario = precio_lista * (1 - descuento_costo/100)
         precio_venta_unitario = precio_lista * (1 - venta_disc/100)
-        
+
         detalle.append({
             "producto": producto,
             "cantidad": cantidad,
@@ -273,33 +184,24 @@ def main():
             "total_costo": costo_unitario * cantidad,
             "total_venta": precio_venta_unitario * cantidad
         })
-    
+
     if detalle:
         df = pd.DataFrame(detalle)
-        
-        # Resumen financiero
         st.divider()
         st.subheader("📊 Resumen Financiero")
-        
-        # Métricas clave
+
         col1, col2, col3 = st.columns(3)
         col1.metric("Total Lista", f"${df['total_lista'].sum():,.2f}")
-        col2.metric("Total Costo", f"${df['total_costo'].sum():,.2f}", 
-                   delta=f"-{df['descuento_costo'].mean():.1f}% descuento costo")
-        col3.metric("Total Venta", f"${df['total_venta'].sum():,.2f}", 
-                   delta=f"-{df['descuento_venta'].mean():.1f}% descuento venta")
-        
-        # Cálculo de utilidad
+        col2.metric("Total Costo", f"${df['total_costo'].sum():,.2f}", delta=f"-{df['descuento_costo'].mean():.1f}% descuento costo")
+        col3.metric("Total Venta", f"${df['total_venta'].sum():,.2f}", delta=f"-{df['descuento_venta'].mean():.1f}% descuento venta")
+
         utilidad = df['total_venta'].sum() - df['total_costo'].sum()
         margen = (utilidad / df['total_venta'].sum()) * 100 if df['total_venta'].sum() > 0 else 0
         st.success(f"## 🏆 Resultado Final: Utilidad ${utilidad:,.2f} | Margen {margen:.1f}%")
-        
-        # Guardar en base de datos
+
         if st.button("💾 Guardar Cotización", type="primary"):
             with conectar_db() as conn:
                 cursor = conn.cursor()
-                
-                # Insertar cabecera
                 cursor.execute("""
                     INSERT INTO cotizaciones (
                         cliente, contacto, propuesta, fecha, responsable,
@@ -313,10 +215,7 @@ def main():
                         df['total_venta'].sum(), utilidad, margen,
                         datos["vigencia"], datos["condiciones_comerciales"]
                     ))
-                
                 cotizacion_id = cursor.lastrowid
-                
-                # Insertar detalle
                 for item in detalle:
                     cursor.execute("""
                         INSERT INTO detalle_productos (
@@ -330,90 +229,65 @@ def main():
                             item["costo_unitario"], item["descuento_venta"],
                             item["precio_venta"]
                         ))
-                
                 conn.commit()
                 st.toast("✅ Cotización guardada exitosamente!")
 
     # ========================
-    # Consulta de cotizaciones
+    # Historial de Cotizaciones
     # ========================
     st.divider()
     st.subheader("📂 Historial de Cotizaciones")
-    
+
     with conectar_db() as conn:
-        df_historial = pd.read_sql_query(
-            "SELECT * FROM cotizaciones ORDER BY fecha DESC", 
-            conn
-        )
-    
+        df_historial = pd.read_sql_query("SELECT * FROM cotizaciones ORDER BY fecha DESC", conn)
+
     if not df_historial.empty:
-        # Selección de cotización
         opciones = [
             f"{row['fecha']} - {row['cliente']} - {row['propuesta']} (${row['total_venta']:,.2f})"
             for _, row in df_historial.iterrows()
         ]
-        
         seleccion = st.selectbox("Seleccionar cotización:", opciones)
-        
+
         if seleccion:
-            # Obtener ID
             index = opciones.index(seleccion)
             id_cotizacion = df_historial.iloc[index]['id']
-            
-            # Obtener detalles
-            detalle_cotizacion = pd.read_sql_query(
-                f"""SELECT producto, cantidad, precio_lista, 
-                    descuento_costo, costo, descuento_venta, precio_venta
-                    FROM detalle_productos 
-                    WHERE cotizacion_id = {id_cotizacion}""",
-                conn
-            )
-            
-            # Mostrar detalles
+
+            detalle_cotizacion = pd.read_sql_query(f"""
+                SELECT producto, cantidad, precio_lista, descuento_costo, costo, descuento_venta, precio_venta
+                FROM detalle_productos WHERE cotizacion_id = {id_cotizacion}
+            """, conn)
+
             st.subheader("📄 Detalles de la Cotización")
-            st.dataframe(detalle_cotizacion.style.format({
-                'precio_lista': '${:.2f}',
-                'costo': '${:.2f}',
-                'precio_venta': '${:.2f}',
-                'descuento_costo': '{:.1f}%',
-                'descuento_venta': '{:.1f}%'
-            }))
-            
-            # Generar PDF
+            st.dataframe(detalle_cotizacion)
+
             if st.button("📄 Generar PDF"):
                 pdf = CotizacionPDF()
+                pdf.cliente = df_historial.iloc[index]['cliente']
+                pdf.contacto = df_historial.iloc[index]['contacto']
+                pdf.propuesta = df_historial.iloc[index]['propuesta']
+                pdf.vigencia = df_historial.iloc[index]['vigencia']
+                pdf.condiciones = df_historial.iloc[index]['condiciones_comerciales']
+                pdf.responsable = df_historial.iloc[index]['responsable']
+                pdf.periodo = termino
                 pdf.add_page()
-                
-                # Cabecera
-                pdf.set_font("Helvetica", "B", 12)
-                pdf.cell(0, 10, f"Cliente: {df_historial.iloc[index]['cliente']}", ln=True)
-                pdf.cell(0, 10, f"Fecha: {df_historial.iloc[index]['fecha']}", ln=True)
-                
-                # Detalle
-                pdf.ln(10)
-                pdf.set_font("Helvetica", "B", 10)
-                pdf.cell(60, 10, "Producto", 1)
-                pdf.cell(30, 10, "Cantidad", 1)
-                pdf.cell(40, 10, "Precio Venta", 1, align="R", ln=True)
-                
-                pdf.set_font("Helvetica", "", 10)
+
+                detalle_pdf = []
                 for _, row in detalle_cotizacion.iterrows():
-                    pdf.cell(60, 10, row['producto'], 1)
-                    pdf.cell(30, 10, str(row['cantidad']), 1)
-                    pdf.cell(40, 10, f"${row['precio_venta']:.2f}", 1, align="R", ln=True)
-                
-                # Guardar PDF
+                    detalle_pdf.append({
+                        "cantidad": row['cantidad'],
+                        "producto": row['producto'],
+                        "precio_venta": row['precio_venta'],
+                        "precio_lista": row['precio_lista'],
+                        "descuento_venta": row['descuento_venta'],
+                        "total_venta": row['precio_venta'] * row['cantidad']
+                    })
+                pdf.tabla_productos(detalle_pdf)
+
                 pdf_output = f"cotizacion_{id_cotizacion}.pdf"
                 pdf.output(pdf_output)
-                
-                # Descargar
+
                 with open(pdf_output, "rb") as f:
-                    st.download_button(
-                        "⬇️ Descargar PDF",
-                        data=f,
-                        file_name=pdf_output,
-                        mime="application/pdf"
-                    )
+                    st.download_button("⬇️ Descargar PDF Final", data=f, file_name=pdf_output, mime="application/pdf")
     else:
         st.info("No hay cotizaciones guardadas en el historial")
 
