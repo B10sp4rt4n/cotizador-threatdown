@@ -9,7 +9,7 @@ from fpdf import FPDF
 # Configuración inicial
 # ========================
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
-LOGO_PATH = "LOGO Syn Apps Sys_edited (2).png"  # Actualizar con tu ruta
+LOGO_PATH = "LOGO Syn Apps Sys_edited (2).png"
 
 # ========================
 # Funciones de base de datos
@@ -19,7 +19,6 @@ def inicializar_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         
-        # Tabla principal
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS cotizaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +29,6 @@ def inicializar_db():
                 vigencia TEXT, condiciones_comerciales TEXT
             )""")
         
-        # Tabla detalle
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detalle_productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -80,6 +78,21 @@ def mostrar_encabezado():
                 value="Precios en USD. Pago contra entrega."
             )
         }
+
+# ========================
+# Generador de PDF
+# ========================
+class CotizacionPDF(FPDF):
+    def header(self):
+        self.image(LOGO_PATH, x=10, y=8, w=40)
+        self.set_font("Helvetica", "B", 16)
+        self.cell(0, 10, "Reporte de Cotización", ln=True, align="C")
+        self.ln(20)
+        
+    def footer(self):
+        self.set_y(-15)
+        self.set_font("Helvetica", "I", 8)
+        self.cell(0, 10, f"Página {self.page_no()}", 0, 0, "C")
 
 # ========================
 # Lógica principal
@@ -220,6 +233,88 @@ def main():
                 conn.commit()
                 st.toast("✅ Cotización guardada exitosamente!")
 
+    # ========================
+    # Consulta de cotizaciones
+    # ========================
+    st.divider()
+    st.subheader("📂 Historial de Cotizaciones")
+    
+    with conectar_db() as conn:
+        df_historial = pd.read_sql_query(
+            "SELECT * FROM cotizaciones ORDER BY fecha DESC", 
+            conn
+        )
+    
+    if not df_historial.empty:
+        # Selección de cotización
+        opciones = [
+            f"{row['fecha']} - {row['cliente']} - {row['propuesta']} (${row['total_venta']:,.2f})"
+            for _, row in df_historial.iterrows()
+        ]
+        
+        seleccion = st.selectbox("Seleccionar cotización:", opciones)
+        
+        if seleccion:
+            # Obtener ID
+            index = opciones.index(seleccion)
+            id_cotizacion = df_historial.iloc[index]['id']
+            
+            # Obtener detalles
+            detalle_cotizacion = pd.read_sql_query(
+                f"""SELECT producto, cantidad, precio_lista, 
+                    descuento_costo, costo, descuento_venta, precio_venta
+                    FROM detalle_productos 
+                    WHERE cotizacion_id = {id_cotizacion}""",
+                conn
+            )
+            
+            # Mostrar detalles
+            st.subheader("📄 Detalles de la Cotización")
+            st.dataframe(detalle_cotizacion.style.format({
+                'precio_lista': '${:.2f}',
+                'costo': '${:.2f}',
+                'precio_venta': '${:.2f}',
+                'descuento_costo': '{:.1f}%',
+                'descuento_venta': '{:.1f}%'
+            }))
+            
+            # Generar PDF
+            if st.button("📄 Generar PDF"):
+                pdf = CotizacionPDF()
+                pdf.add_page()
+                
+                # Cabecera
+                pdf.set_font("Helvetica", "B", 12)
+                pdf.cell(0, 10, f"Cliente: {df_historial.iloc[index]['cliente']}", ln=True)
+                pdf.cell(0, 10, f"Fecha: {df_historial.iloc[index]['fecha']}", ln=True)
+                
+                # Detalle
+                pdf.ln(10)
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.cell(60, 10, "Producto", 1)
+                pdf.cell(30, 10, "Cantidad", 1)
+                pdf.cell(40, 10, "Precio Venta", 1, align="R", ln=True)
+                
+                pdf.set_font("Helvetica", "", 10)
+                for _, row in detalle_cotizacion.iterrows():
+                    pdf.cell(60, 10, row['producto'], 1)
+                    pdf.cell(30, 10, str(row['cantidad']), 1)
+                    pdf.cell(40, 10, f"${row['precio_venta']:.2f}", 1, align="R", ln=True)
+                
+                # Guardar PDF
+                pdf_output = f"cotizacion_{id_cotizacion}.pdf"
+                pdf.output(pdf_output)
+                
+                # Descargar
+                with open(pdf_output, "rb") as f:
+                    st.download_button(
+                        "⬇️ Descargar PDF",
+                        data=f,
+                        file_name=pdf_output,
+                        mime="application/pdf"
+                    )
+    else:
+        st.info("No hay cotizaciones guardadas en el historial")
+
 if __name__ == "__main__":
-    main()  # 🚨 Asegurar que esta línea esté al final del archivo
-  
+    main()
