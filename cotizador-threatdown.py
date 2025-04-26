@@ -9,7 +9,7 @@ from fpdf import FPDF
 # Configuración inicial
 # ========================
 DB_PATH = os.path.join(os.getcwd(), "crm_cotizaciones.sqlite")
-LOGO_PATH = "logo_empresa.png"  # Cambiar por tu ruta de logo
+LOGO_PATH = "LOGO Syn Apps Sys_edited (2).png"  # Actualizar con tu ruta
 
 # ========================
 # Funciones de base de datos
@@ -19,7 +19,7 @@ def inicializar_db():
     with sqlite3.connect(DB_PATH) as conn:
         cursor = conn.cursor()
         
-        # Tabla principal de cotizaciones
+        # Tabla principal
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS cotizaciones (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -30,7 +30,7 @@ def inicializar_db():
                 vigencia TEXT, condiciones_comerciales TEXT
             )""")
         
-        # Tabla de detalle de productos
+        # Tabla detalle
         cursor.execute("""
             CREATE TABLE IF NOT EXISTS detalle_productos (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -75,22 +75,19 @@ def mostrar_encabezado():
             "fecha": st.date_input("Fecha", value=date.today()),
             "responsable": st.text_input("Responsable"),
             "vigencia": st.text_input("Vigencia", value="30 días"),
-            "condiciones": st.text_area("Condiciones Comerciales", 
-                                      value="Precios en USD. Pago contra entrega.")
+            "condiciones_comerciales": st.text_area(
+                "Condiciones Comerciales", 
+                value="Precios en USD. Pago contra entrega."
+            )
         }
 
 # ========================
 # Lógica principal
 # ========================
-def inicializar_db():
-    with sqlite3.connect(DB_PATH) as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            CREATE TABLE IF NOT EXISTS cotizaciones (
-                # ... otras columnas ...
-                vigencia TEXT,
-                condiciones_comerciales TEXT  # ✅ Nombre exacto
-            )""")
+def main():
+    inicializar_db()
+    datos = mostrar_encabezado()
+    
     # Carga de precios
     df_precios = cargar_datos()
     
@@ -136,14 +133,14 @@ def inicializar_db():
             
         with col2:
             st.markdown("#### 💰 Descuento para Venta")
-            max_venta_disc = min(descuento_costo, 100.0)  # No puede superar el descuento de costo
+            max_venta_disc = min(descuento_costo, 100.0)
             venta_disc = st.number_input(
                 "Descuento Venta (%)", 
                 0.0, 
                 max_venta_disc,
                 0.0,
                 key=f"venta_{producto}",
-                help=f"Máximo permitido: {max_venta_disc}% según descuentos de costo"
+                help=f"Máximo permitido: {max_venta_disc}%"
             )
         
         # Cálculos financieros
@@ -183,57 +180,45 @@ def inicializar_db():
         margen = (utilidad / df['total_venta'].sum()) * 100 if df['total_venta'].sum() > 0 else 0
         st.success(f"## 🏆 Resultado Final: Utilidad ${utilidad:,.2f} | Margen {margen:.1f}%")
         
-        # Detalle tabular
-        st.subheader("🔍 Detalle por Producto")
-        st.dataframe(df.style.format({
-            'precio_lista': '${:.2f}',
-            'costo_unitario': '${:.2f}',
-            'precio_venta': '${:.2f}',
-            'total_lista': '${:,.2f}',
-            'total_costo': '${:,.2f}',
-            'total_venta': '${:,.2f}',
-            'descuento_costo': '{:.1f}%',
-            'descuento_venta': '{:.1f}%'
-        }))
-        
         # Guardar en base de datos
         if st.button("💾 Guardar Cotización", type="primary"):
-            with conectar_db() as conn:  # ← Indentación añadida
+            with conectar_db() as conn:
                 cursor = conn.cursor()
-        # Todo el código dentro del bloque debe estar indentado
+                
+                # Insertar cabecera
                 cursor.execute("""
-                INSERT INTO cotizaciones (
-                    cliente, contacto, propuesta, fecha, responsable,
-                    total_lista, total_costo, total_venta,
-                    utilidad, margen, vigencia, condiciones_comerciales
-                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                datos["cliente"], datos["contacto"], datos["propuesta"],
-                datos["fecha"].isoformat(), datos["responsable"],
-                df['total_lista'].sum(), df['total_costo'].sum(),
-                df['total_venta'].sum(), utilidad, margen,
-                datos["vigencia"], datos["condiciones_comerciales"]
-            ))
-        
-        cotizacion_id = cursor.lastrowid
-        
-        # Insertar detalle (también indentado)
-        for item in detalle:
-            cursor.execute("""
-                INSERT INTO detalle_productos (
-                    cotizacion_id, producto, cantidad,
-                    precio_lista, descuento_costo, costo,
-                    descuento_venta, precio_venta
-                ) VALUES (?,?,?,?,?,?,?,?)""",
-                (
-                    cotizacion_id, item["producto"], item["cantidad"],
-                    item["precio_lista"], item["descuento_costo"],
-                    item["costo_unitario"], item["descuento_venta"],
-                    item["precio_venta"]
-                ))
-        
-        conn.commit()
-        st.toast("✅ Cotización guardada exitosamente!")
+                    INSERT INTO cotizaciones (
+                        cliente, contacto, propuesta, fecha, responsable,
+                        total_lista, total_costo, total_venta,
+                        utilidad, margen, vigencia, condiciones_comerciales
+                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+                    (
+                        datos["cliente"], datos["contacto"], datos["propuesta"],
+                        datos["fecha"].isoformat(), datos["responsable"],
+                        df['total_lista'].sum(), df['total_costo'].sum(),
+                        df['total_venta'].sum(), utilidad, margen,
+                        datos["vigencia"], datos["condiciones_comerciales"]
+                    ))
+                
+                cotizacion_id = cursor.lastrowid
+                
+                # Insertar detalle
+                for item in detalle:
+                    cursor.execute("""
+                        INSERT INTO detalle_productos (
+                            cotizacion_id, producto, cantidad,
+                            precio_lista, descuento_costo, costo,
+                            descuento_venta, precio_venta
+                        ) VALUES (?,?,?,?,?,?,?,?)""",
+                        (
+                            cotizacion_id, item["producto"], item["cantidad"],
+                            item["precio_lista"], item["descuento_costo"],
+                            item["costo_unitario"], item["descuento_venta"],
+                            item["precio_venta"]
+                        ))
+                
+                conn.commit()
+                st.toast("✅ Cotización guardada exitosamente!")
 
 if __name__ == "__main__":
-    main()
+    main()  # 🚨 Asegurar que esta línea esté al final del archivo
