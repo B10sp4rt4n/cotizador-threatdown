@@ -151,8 +151,12 @@ class CotizacionPDF(FPDF):
         self.cell(col_widths[-1], 10, f"${total:.2f}", 1, 0, "R")
 
 # Modificación en el bloque de generación de PDF
-if st.button("📄 Generar PDF"):
-    pdf = CotizacionPDF()
+if st.button(
+    "📄 Generar PDF",
+    key=f"pdf_button_{id_cotizacion}",  # Key único
+    help="Generar documento PDF de esta cotización"
+):
+    # ... (código de generación de PDF)
     
     # Agregar datos contextuales
     pdf.cliente = df_historial.iloc[index]['cliente']
