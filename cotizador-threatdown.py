@@ -163,7 +163,7 @@ def main():
             item_disc = st.number_input("Item Disc (%)", 0.0, 100.0, 0.0, key=f"item_{producto}")
             channel_disc = st.number_input("Channel Disc (%)", 0.0, 100.0, 0.0, key=f"channel_{producto}")
             deal_disc = st.number_input("Deal Reg Disc (%)", 0.0, 100.0, 0.0, key=f"deal_{producto}")
-            descuento_costo = (item_disc + channel_disc) * deal_disc
+            descuento_costo = (item_disc + channel_disc) * (.1) * deal_disc
         with col2:
             st.markdown("#### 💰 Descuento para Venta")
             max_venta_disc = min(descuento_costo, 100.0)
