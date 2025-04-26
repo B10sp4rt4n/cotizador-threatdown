@@ -198,51 +198,42 @@ def inicializar_db():
         
         # Guardar en base de datos
         if st.button("💾 Guardar Cotización", type="primary"):
-    with conectar_db() as conn:
-        cursor = conn.cursor()
-        cursor.execute("""
-            INSERT INTO cotizaciones (
-                # ... otras columnas ...
-                condiciones_comerciales  # ✅ Nombre correcto
-            ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-            (
-                # ... otros valores ...
-                datos["condiciones_comerciales"]  # ✅ Clave correcta
-            ))
-                # Insertar cabecera
-             cursor.execute("""
+            with conectar_db() as conn:  # ← Indentación añadida
+                cursor = conn.cursor()
+        # Todo el código dentro del bloque debe estar indentado
+                cursor.execute("""
                 INSERT INTO cotizaciones (
                     cliente, contacto, propuesta, fecha, responsable,
                     total_lista, total_costo, total_venta,
-                    utilidad, margen, vigencia, condiciones_comerciales  # 🛠️ Nombre correcto
-                    ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
-                    (
-                    datos["cliente"], datos["contacto"], datos["propuesta"],
-                    datos["fecha"].isoformat(), datos["responsable"],
-                    df['total_lista'].sum(), df['total_costo'].sum(),
-                    df['total_venta'].sum(), utilidad, margen,
-                    datos["vigencia"], datos["condiciones_comerciales"]  # 🔑 Clave corregida
-                  ))
-                
-                cotizacion_id = cursor.lastrowid
-                
-                # Insertar detalle
-                for item in detalle:
-                    cursor.execute("""
-                        INSERT INTO detalle_productos (
-                            cotizacion_id, producto, cantidad,
-                            precio_lista, descuento_costo, costo,
-                            descuento_venta, precio_venta
-                        ) VALUES (?,?,?,?,?,?,?,?)""",
-                        (
-                            cotizacion_id, item["producto"], item["cantidad"],
-                            item["precio_lista"], item["descuento_costo"],
-                            item["costo_unitario"], item["descuento_venta"],
-                            item["precio_venta"]
-                        ))
-                
-                conn.commit()
-                st.toast("✅ Cotización guardada exitosamente!")
+                    utilidad, margen, vigencia, condiciones_comerciales
+                ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)""",
+            (
+                datos["cliente"], datos["contacto"], datos["propuesta"],
+                datos["fecha"].isoformat(), datos["responsable"],
+                df['total_lista'].sum(), df['total_costo'].sum(),
+                df['total_venta'].sum(), utilidad, margen,
+                datos["vigencia"], datos["condiciones_comerciales"]
+            ))
+        
+        cotizacion_id = cursor.lastrowid
+        
+        # Insertar detalle (también indentado)
+        for item in detalle:
+            cursor.execute("""
+                INSERT INTO detalle_productos (
+                    cotizacion_id, producto, cantidad,
+                    precio_lista, descuento_costo, costo,
+                    descuento_venta, precio_venta
+                ) VALUES (?,?,?,?,?,?,?,?)""",
+                (
+                    cotizacion_id, item["producto"], item["cantidad"],
+                    item["precio_lista"], item["descuento_costo"],
+                    item["costo_unitario"], item["descuento_venta"],
+                    item["precio_venta"]
+                ))
+        
+        conn.commit()
+        st.toast("✅ Cotización guardada exitosamente!")
 
 if __name__ == "__main__":
     main()
