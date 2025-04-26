@@ -297,11 +297,31 @@ def agregar_cliente(datos):
     finally:
         conn.close()
 
+import traceback  # Importa la librería traceback
+
 def mostrar_clientes():
-    conn = conectar_db()
-    df = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
-    conn.close()
-    return df
+    """Obtiene todos los clientes de la base de datos con manejo de errores."""
+    try:
+        conn = conectar_db()
+        if conn is None:  # Verifica si la conexión es válida
+            raise sqlite3.OperationalError("No se pudo establecer la conexión a la base de datos")
+        df = pd.read_sql_query("SELECT * FROM clientes ORDER BY empresa ASC", conn)
+        conn.close()
+        print("[LOG] Clientes cargados exitosamente.")
+        return df
+    except sqlite3.Error as e:
+        print(f"[ERROR] Error al obtener la lista de clientes: {e}")
+        traceback.print_exc()  # Imprime el traceback completo
+        st.error(f"❌ Error al obtener la lista de clientes: {e}")
+        return pd.DataFrame()  # Devuelve un DataFrame vacío en caso de error
+    except Exception as e:  # Captura otros errores inesperados
+        print(f"[ERROR] Error inesperado al obtener la lista de clientes: {e}")
+        traceback.print_exc()
+        st.error(f"❌ Error inesperado: {e}")
+        return pd.DataFrame()
+    finally:
+        if 'conn' in locals() and conn is not None:
+            conn.close()  # Asegura que la conexión se cierre
 
 def vista_clientes():
     st.title("📇 Gestión de Clientes")
