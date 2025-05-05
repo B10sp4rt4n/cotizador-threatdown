@@ -176,9 +176,11 @@ if st.button("➕ Agregar producto a la cotización"):
     
     precio_base = df_producto["MSRP USD"]
     
-    # Cálculos para costo
-    precio_costo = precio_base * (1 - item_disc/100) * (1 - (channel_disc + deal_reg_disc)/100)
-    subtotal_costo = precio_costo * cantidad
+    # Cálculos para costo (usando nueva lógica de descuentos)
+precio_intermedio = precio_base * (1 - item_disc / 100)
+descuento_acumulado = channel_disc + deal_reg_disc
+precio_costo = precio_intermedio * (1 - descuento_acumulado / 100)
+subtotal_costo = precio_costo * cantidad
     
     # Cálculos para venta
     precio_venta = precio_base * (1 - direct_discount/100)
