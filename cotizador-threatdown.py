@@ -164,7 +164,6 @@ condiciones_comerciales = st.text_area(
 
 
 terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
-termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
 
 df_filtrado_termino = df_precios[df_precios["Term (Month)"] == termino_seleccionado]
 productos = df_filtrado_termino["Product Title"].unique()
