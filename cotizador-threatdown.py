@@ -119,6 +119,9 @@ def cargar_datos():
 
 df_precios = cargar_datos()
 
+# Mover selección de término aquí antes de usarlo
+terminos_disponibles = sorted(df_precios["Term (Month)"].dropna().unique())
+termino_seleccionado = st.selectbox("Selecciona el plazo del servicio (en meses):", terminos_disponibles)
 
 # Agregar producto personalizado como opción inicial
 producto_personalizado_placeholder = {
@@ -129,6 +132,7 @@ producto_personalizado_placeholder = {
     "Term (Month)": termino_seleccionado
 }
 df_precios = pd.concat([df_precios, pd.DataFrame([producto_personalizado_placeholder])], ignore_index=True)
+
 
 
 st.title("Cotizador ThreatDown con CRM")
