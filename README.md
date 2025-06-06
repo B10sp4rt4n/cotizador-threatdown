@@ -85,3 +85,7 @@ enableCORS = false
 ## 📌 Notas
 - Asegúrate de usar `tempfile.gettempdir()` para rutas temporales si estás desplegando en Streamlit Cloud.
 - No edites directamente las tablas desde el Excel, usa las vistas administrativas integradas.
+
+
+## Modificación por Salvador
+Este es mi primer cambio de prueba desde Visual Studio Code.
